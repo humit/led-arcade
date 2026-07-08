@@ -10,10 +10,8 @@
 
 // -------------------- WiFi --------------------
 
-const char* AP_SSID = "LED-Arcade";
-// Open AP for lowest-friction captive portal onboarding.
-// QR payload: WIFI:T:nopass;S:LED-Arcade;;
-const char* AP_PASSWORD = "";
+const char* AP_SSID = "LED-Arcade-08";
+const char* AP_PASSWORD = "playleds";
 
 const byte DNS_PORT = 53;
 
@@ -127,25 +125,11 @@ bool cpuArmed = false;
 uint32_t cpuHitAtMs = 0;
 uint8_t cpuPlannedColor = C_RED;
 
-// -------------------- System state --------------------
-
-bool gamePaused = false;
-bool audioMuted = false;
-
-// -------------------- Forward declarations --------------------
-
-int currentBallTailLength();
-float ballHeadPos();
-void handleGamePause();
-void handleMute();
-void drawPaused();
-
 // -------------------- Audio --------------------
 // Daha kısık ses için LEDC + düşük duty kullanıyoruz.
 
 void playToneSoft(uint16_t freq, uint16_t durationMs) {
   if (freq == 0 || durationMs == 0) return;
-  if (audioMuted) return;
 
   // Arduino-ESP32 v3.x: LEDC API pin tabanlıdır.
   ledcWriteTone(AUDIO_PIN, freq);
@@ -429,10 +413,6 @@ button:active{transform:scale(.985);filter:brightness(1.25)}
 .green{background:linear-gradient(180deg,#24c66a,#126436)}
 .blueBtn{background:linear-gradient(180deg,#2687ff,#123a77)}
 .disabled{filter:grayscale(.72);opacity:.55}
-.systemButtons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-.smallBtn{height:56px;min-height:56px;max-height:56px;border-radius:16px;font-size:17px;letter-spacing:0}
-.pauseBtn{background:linear-gradient(180deg,#6b7280,#303642)}
-.muteBtn{background:linear-gradient(180deg,#7c5cff,#37246e)}
 .status{margin-top:12px;color:#9ca8bd;font-weight:800;min-height:22px}
 .tiny{margin-top:6px;color:#667085;font-size:12px;line-height:1.35}
 </style>
@@ -464,13 +444,8 @@ button:active{transform:scale(.985);filter:brightness(1.25)}
     <button id="blueBtn" class="blueBtn">MAVİ</button>
   </div>
 
-  <div class="systemButtons">
-    <button id="pauseBtn" class="smallBtn pauseBtn">OYUNU DURDUR</button>
-    <button id="muteBtn" class="smallBtn muteBtn">SESSİZ</button>
-  </div>
-
   <div id="status" class="status">Hazır</div>
-  <div class="tiny">SSID: LED-Arcade · IP: 10.10.10.1</div>
+  <div class="tiny">SSID: LED-Arcade-08 · IP: 10.10.10.1</div>
 </main>
 
 <script>
@@ -491,8 +466,6 @@ let ballColor="red";
 let inZone=false;
 let mode="playing";
 let lastPress=0;
-let gamePaused=false;
-let audioMuted=false;
 
 const roleEl=document.getElementById("role");
 const targetEl=document.getElementById("target");
@@ -505,8 +478,6 @@ const pinkWhoEl=document.getElementById("pinkWho");
 const redBtn=document.getElementById("redBtn");
 const greenBtn=document.getElementById("greenBtn");
 const blueBtn=document.getElementById("blueBtn");
-const pauseBtn=document.getElementById("pauseBtn");
-const muteBtn=document.getElementById("muteBtn");
 
 function colorTr(c){
   if(c==="red") return "KIRMIZI";
@@ -527,14 +498,11 @@ function paint(){
   if(role==="pink") roleEl.className="role pinkText";
   roleEl.textContent=roleText(role);
 
-  pauseBtn.textContent = gamePaused ? "OYUNU SÜRDÜR" : "OYUNU DURDUR";
-  muteBtn.textContent = audioMuted ? "SESİ AÇ" : "SESSİZ";
-
   redBtn.classList.remove("disabled");
   greenBtn.classList.remove("disabled");
   blueBtn.classList.remove("disabled");
 
-  if(role==="none" || mode==="point" || gamePaused){
+  if(role==="none" || mode==="point"){
     redBtn.classList.add("disabled");
     greenBtn.classList.add("disabled");
     blueBtn.classList.add("disabled");
@@ -542,9 +510,7 @@ function paint(){
 
   targetEl.textContent="GELEN RENK: " + colorTr(ballColor);
 
-  if(gamePaused){
-    hintEl.textContent="OYUN DURDU. Devam etmek için OYUNU SÜRDÜR’e bas.";
-  }else if(role==="none"){
+  if(role==="none"){
     hintEl.textContent="İzleyicisin. Slot boşalırsa otomatik oyuna alınırsın.";
   }else if(mode==="point"){
     hintEl.textContent="Hasar! Yeni rally başlıyor.";
@@ -579,8 +545,6 @@ async function state(){
     ballColor=d.ballColor||"red";
     inZone=!!d.inZone;
     mode=d.mode;
-    gamePaused=!!d.gamePaused;
-    audioMuted=!!d.audioMuted;
 
     blueStatsEl.textContent=d.blueHp + " HP · x" + d.blueCombo;
     pinkStatsEl.textContent=d.pinkHp + " HP · x" + d.pinkCombo;
@@ -594,11 +558,6 @@ async function state(){
 }
 
 async function fire(color){
-  if(gamePaused){
-    statusEl.textContent="Oyun durdu";
-    return;
-  }
-
   if(role==="none"){
     statusEl.textContent="İzleyici oynayamaz";
     return;
@@ -619,36 +578,9 @@ async function fire(color){
   }
 }
 
-async function setGamePaused(next){
-  try{
-    const r=await fetch("/game_pause?paused="+(next?1:0)+"&cid="+encodeURIComponent(cid)+"&t="+Date.now(),{cache:"no-store"});
-    const d=await r.json();
-    gamePaused=!!d.gamePaused;
-    if(typeof d.audioMuted==="boolean") audioMuted=d.audioMuted;
-    statusEl.textContent=gamePaused ? "Oyun durdu" : "Oyun sürdü";
-    paint();
-  }catch(e){
-    statusEl.textContent="Pause gönderilemedi";
-  }
-}
-
-async function setMuted(next){
-  try{
-    const r=await fetch("/mute?muted="+(next?1:0)+"&cid="+encodeURIComponent(cid)+"&t="+Date.now(),{cache:"no-store"});
-    const d=await r.json();
-    audioMuted=!!d.audioMuted;
-    statusEl.textContent=audioMuted ? "Ses kapalı" : "Ses açık";
-    paint();
-  }catch(e){
-    statusEl.textContent="Mute gönderilemedi";
-  }
-}
-
 redBtn.addEventListener("pointerdown",function(ev){ev.preventDefault();fire("red");},{passive:false});
 greenBtn.addEventListener("pointerdown",function(ev){ev.preventDefault();fire("green");},{passive:false});
 blueBtn.addEventListener("pointerdown",function(ev){ev.preventDefault();fire("blue");},{passive:false});
-pauseBtn.addEventListener("pointerdown",function(ev){ev.preventDefault();setGamePaused(!gamePaused);},{passive:false});
-muteBtn.addEventListener("pointerdown",function(ev){ev.preventDefault();setMuted(!audioMuted);},{passive:false});
 
 join();
 setInterval(state,180);
@@ -940,8 +872,6 @@ void handleState() {
     "\"mode\":\"" + modeName() + "\"," +
     "\"targetSide\":\"" + sideName(targetSide) + "\"," +
     "\"ballColor\":\"" + colorName(ballColorType) + "\"," +
-    "\"gamePaused\":" + String(gamePaused ? "true" : "false") + "," +
-    "\"audioMuted\":" + String(audioMuted ? "true" : "false") + "," +
     "\"charged\":" + String(ballCharged ? "true" : "false") + "," +
     "\"inZone\":" + String(inZone ? "true" : "false") + "," +
     "\"blueHuman\":" + String(slots[BLUE_SIDE].human ? "true" : "false") + "," +
@@ -979,11 +909,6 @@ void handlePress() {
   slots[slot].lastSeenMs = millis();
   slots[slot].lastActionMs = millis();
 
-  if (gamePaused) {
-    sendJson("{\"ok\":false,\"message\":\"game paused\"}");
-    return;
-  }
-
   uint8_t pressedColor = parseColorArg(colorArg);
 
   if (pressedColor > C_BLUE) {
@@ -1017,52 +942,6 @@ void handlePress() {
 
   bounceFrom(slot, false);
   sendJson("{\"ok\":true,\"message\":\"hit\"}");
-}
-
-
-void handleGamePause() {
-  String pausedArg = server.arg("paused");
-
-  if (pausedArg == "1" || pausedArg == "true") {
-    gamePaused = true;
-    audioMuted = true;
-    ledcWriteTone(AUDIO_PIN, 0);
-    ledcWrite(AUDIO_PIN, 0);
-    Serial.println("[SYSTEM] game paused");
-    sendJson("{\"ok\":true,\"gamePaused\":true,\"audioMuted\":true}");
-    return;
-  }
-
-  if (pausedArg == "0" || pausedArg == "false") {
-    gamePaused = false;
-    Serial.println("[SYSTEM] game resumed");
-    sendJson(String("{\"ok\":true,\"gamePaused\":false,\"audioMuted\":") + (audioMuted ? "true" : "false") + "}");
-    return;
-  }
-
-  sendJson(String("{\"ok\":false,\"message\":\"bad paused value\",\"gamePaused\":") + (gamePaused ? "true" : "false") + "}");
-}
-
-void handleMute() {
-  String mutedArg = server.arg("muted");
-
-  if (mutedArg == "1" || mutedArg == "true") {
-    audioMuted = true;
-    ledcWriteTone(AUDIO_PIN, 0);
-    ledcWrite(AUDIO_PIN, 0);
-    Serial.println("[SYSTEM] audio muted");
-    sendJson("{\"ok\":true,\"audioMuted\":true}");
-    return;
-  }
-
-  if (mutedArg == "0" || mutedArg == "false") {
-    audioMuted = false;
-    Serial.println("[SYSTEM] audio unmuted");
-    sendJson("{\"ok\":true,\"audioMuted\":false}");
-    return;
-  }
-
-  sendJson(String("{\"ok\":false,\"message\":\"bad muted value\",\"audioMuted\":") + (audioMuted ? "true" : "false") + "}");
 }
 
 // -------------------- LED render --------------------
@@ -1118,8 +997,10 @@ void drawHitZones() {
     dimSet(i, pink, pinkScale);
   }
 
-  // Middle white marker LEDs intentionally removed.
-  // Color Rally is based on ball-head contact with hit zones, not center-line play.
+  int midA = LED_COUNT / 2 - 1;
+  int midB = LED_COUNT / 2;
+  dimSet(midA, CRGB::White, 16);
+  dimSet(midB, CRGB::White, 16);
 }
 
 void drawBall() {
@@ -1183,33 +1064,7 @@ void drawPointPause() {
   }
 }
 
-
-void drawPaused() {
-  fadeAll(88);
-
-  drawHitZones();
-  drawHpBars();
-  drawBall();
-
-  uint8_t pulse = (millis() / 450) % 2 ? 18 : 4;
-
-  for (int i = 0; i < LED_COUNT; i++) {
-    CRGB c = CRGB::White;
-    c.nscale8_video(pulse);
-    leds[i] += c;
-  }
-
-  dimSet(0, sideColor(BLUE_SIDE), 110);
-  dimSet(LED_COUNT - 1, sideColor(PINK_SIDE), 110);
-}
-
 void renderLeds() {
-  if (gamePaused) {
-    drawPaused();
-    FastLED.show();
-    return;
-  }
-
   if (mode == MODE_POINT_PAUSE) {
     drawPointPause();
     FastLED.show();
@@ -1279,7 +1134,7 @@ ledcWrite(AUDIO_PIN, 0);
     return;
   }
 
-  if (!WiFi.softAP(AP_SSID)) {
+  if (!WiFi.softAP(AP_SSID, AP_PASSWORD)) {
     Serial.println("[ERROR] AP start failed");
     return;
   }
@@ -1290,8 +1145,6 @@ ledcWrite(AUDIO_PIN, 0);
   server.on("/join", HTTP_GET, handleJoin);
   server.on("/state", HTTP_GET, handleState);
   server.on("/press", HTTP_GET, handlePress);
-  server.on("/game_pause", HTTP_GET, handleGamePause);
-  server.on("/mute", HTTP_GET, handleMute);
 
   // Android
   server.on("/generate_204", HTTP_GET, handleCaptiveRedirect);
@@ -1322,7 +1175,8 @@ ledcWrite(AUDIO_PIN, 0);
   Serial.println("[OK] Color Rally started");
   Serial.print("[INFO] SSID: ");
   Serial.println(AP_SSID);
-  Serial.println("[INFO] Auth: open");
+  Serial.print("[INFO] Password: ");
+  Serial.println(AP_PASSWORD);
   Serial.print("[INFO] AP IP: ");
   Serial.println(WiFi.softAPIP());
   Serial.print("[INFO] LED_COUNT: ");
@@ -1336,8 +1190,10 @@ ledcWrite(AUDIO_PIN, 0);
   Serial.print("[INFO] BALL_TAIL_CHARGED: ");
   Serial.println(BALL_TAIL_CHARGED);
   Serial.println("[INFO] QR payload:");
-  Serial.print("       WIFI:T:nopass;S:");
+  Serial.print("       WIFI:T:WPA;S:");
   Serial.print(AP_SSID);
+  Serial.print(";P:");
+  Serial.print(AP_PASSWORD);
   Serial.println(";;");
 }
 
@@ -1355,11 +1211,7 @@ void loop() {
 
   if (dtMs >= 20) {
     lastFrameMs = now;
-
-    if (!gamePaused) {
-      updateGame(dtMs);
-    }
-
+    updateGame(dtMs);
     renderLeds();
   }
 }

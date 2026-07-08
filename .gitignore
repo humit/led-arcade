@@ -1,0 +1,10 @@
+# Build artifacts
+*.bin
+*.elf
+*.map
+*.hex
+build/
+.pio/
+.vscode/
+.idea/
+.DS_Store
