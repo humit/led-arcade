@@ -1,0 +1,1 @@
+WIFI:T:nopass;S:LED-Arcade;;
