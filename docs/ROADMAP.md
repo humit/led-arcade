@@ -32,3 +32,11 @@ src/net/CaptivePortal.h
 - Rate limiting.
 - Admin/host controller.
 - Simon-style color/audio memory game.
+
+## Compile validation
+
+2026-07-08:
+- Arduino IDE compile succeeded for `firmware/arduino/color_rally/color_rally.ino`.
+- Program storage: 1,359,867 bytes / 2,097,152 bytes, 64%.
+- Global variables: 52,256 bytes / 327,680 bytes, 15%.
+- Board target: ESP32 / LOLIN32 Lite class.
