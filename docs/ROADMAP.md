@@ -40,3 +40,10 @@ src/net/CaptivePortal.h
 - Program storage: 1,359,867 bytes / 2,097,152 bytes, 64%.
 - Global variables: 52,256 bytes / 327,680 bytes, 15%.
 - Board target: ESP32 / LOLIN32 Lite class.
+
+2026-07-08:
+- Layered Color Rally firmware compile succeeded via Arduino CLI.
+- Command: `./tools/compile_color_rally.sh`
+- FQBN: `esp32:esp32:lolin32-lite:PartitionScheme=no_ota`
+- Program storage: 1,360,791 bytes / 2,097,152 bytes, 64%.
+- Global variables: 52,272 bytes / 327,680 bytes, 15%.
