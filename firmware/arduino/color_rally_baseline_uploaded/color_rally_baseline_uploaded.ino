@@ -445,7 +445,7 @@ button:active{transform:scale(.985);filter:brightness(1.25)}
   </div>
 
   <div id="status" class="status">Hazır</div>
-  <div class="tiny">SSID: LED-Arcade-08 · IP: 10.10.10.1</div>
+  <div class="tiny">SSID: LED-Arcade-08 · IP: 10.10.10.10</div>
 </main>
 
 <script>
