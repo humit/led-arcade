@@ -2,14 +2,13 @@
 set -euo pipefail
 
 SKETCH_DIR="firmware/arduino/color_rally"
+
+# Default: WEMOS LOLIN32 Lite + No OTA large app partition + stable upload speed.
 FQBN="${FQBN:-esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200}"
 
 PORT="${1:-}"
 
 if [[ -z "$PORT" ]]; then
-  mapfile_cmd_available=false
-
-  # macOS default bash can be old, so avoid relying on bash 4 mapfile.
   PORTS="$(ls /dev/cu.usbserial* 2>/dev/null || true)"
   COUNT="$(printf "%s\n" "$PORTS" | sed '/^$/d' | wc -l | tr -d ' ')"
 
@@ -37,8 +36,9 @@ if [[ -z "$PORT" ]]; then
 fi
 
 echo "Uploading Color Rally"
-echo "  Port: $PORT"
-echo "  FQBN: $FQBN"
+echo "  Sketch: $SKETCH_DIR"
+echo "  Port:   $PORT"
+echo "  FQBN:   $FQBN"
 echo
 
 arduino-cli upload \
