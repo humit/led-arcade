@@ -41,7 +41,7 @@ static const uint8_t MAX_HP = 5;
 static const uint8_t COMBO_FAST_AT = 3;
 static const uint8_t COMBO_CHARGED_AT = 5;
 
-static const uint32_t HUMAN_IDLE_TIMEOUT_MS = 10000;
+static const uint32_t HUMAN_DISCONNECT_TIMEOUT_MS = 30000;
 static const uint32_t SPECTATOR_TIMEOUT_MS = 20000;
 static const uint32_t POINT_PAUSE_MS = 900;
 static const uint32_t CPU_REACTION_MS = 300;

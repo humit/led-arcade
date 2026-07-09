@@ -54,14 +54,14 @@ public:
     server.on("/gen_204", HTTP_GET, [this]() { handleCaptiveRedirect(); });
     server.on("/generate204", HTTP_GET, [this]() { handleCaptiveRedirect(); });
 
-    server.on("/hotspot-detect.html", HTTP_GET, [this]() { handleCaptiveRedirect(); });
-    server.on("/library/test/success.html", HTTP_GET, [this]() { handleCaptiveRedirect(); });
-    server.on("/success.html", HTTP_GET, [this]() { handleCaptiveRedirect(); });
-    server.on("/success.txt", HTTP_GET, [this]() { handleCaptiveRedirect(); });
-    server.on("/canonical.html", HTTP_GET, [this]() { handleCaptiveRedirect(); });
+    server.on("/hotspot-detect.html", HTTP_GET, [this]() { handleRoot(); });
+    server.on("/library/test/success.html", HTTP_GET, [this]() { handleRoot(); });
+    server.on("/success.html", HTTP_GET, [this]() { handleRoot(); });
+    server.on("/success.txt", HTTP_GET, [this]() { handleRoot(); });
+    server.on("/canonical.html", HTTP_GET, [this]() { handleRoot(); });
 
-    server.on("/ncsi.txt", HTTP_GET, [this]() { handleCaptiveRedirect(); });
-    server.on("/connecttest.txt", HTTP_GET, [this]() { handleCaptiveRedirect(); });
+    server.on("/ncsi.txt", HTTP_GET, [this]() { handleRoot(); });
+    server.on("/connecttest.txt", HTTP_GET, [this]() { handleRoot(); });
     server.on("/redirect", HTTP_GET, [this]() { handleRoot(); });
 
     server.on("/captive-portal/api", HTTP_GET, [this]() { handleCaptiveApi(); });

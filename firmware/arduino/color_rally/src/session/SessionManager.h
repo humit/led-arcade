@@ -122,8 +122,11 @@ public:
 
   void expire(uint32_t now, AudioOut& audio) {
     for (int side = 0; side < 2; side++) {
-      if (slots[side].human && now - slots[side].lastActionMs > HUMAN_IDLE_TIMEOUT_MS) {
-        Serial.print("[IDLE] ");
+      if (
+        slots[side].human &&
+        now - slots[side].lastSeenMs > HUMAN_DISCONNECT_TIMEOUT_MS
+      ) {
+        Serial.print("[DISCONNECTED] ");
         Serial.println(sideName(side));
 
         if (firstSpectator() >= 0) {
