@@ -10,29 +10,15 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DOMAIN = "play.nevershire.net"
 
 
-def raw_literal(name: str, value: str) -> str:
-    delimiter = "LEDARCADE_TLS"
-
-    if f"){delimiter}\"" in value:
-        raise ValueError(
-            f"PEM content unexpectedly contains raw-string delimiter: {delimiter}"
-        )
-
-    return (
-        f"static const char {name}[] PROGMEM = "
-        f'R"{delimiter}({value}){delimiter}";'
-    )
-
-
-def read_pem(path: Path, expected_marker: str) -> str:
+def read_pem(path: Path, marker: str) -> str:
     if not path.is_file():
-        raise FileNotFoundError(f"Missing PEM file: {path}")
+        raise SystemExit(f"ERROR: Missing PEM file: {path}")
 
     value = path.read_text(encoding="ascii")
 
-    if expected_marker not in value:
-        raise ValueError(
-            f"{path} does not contain expected marker: {expected_marker}"
+    if marker not in value:
+        raise SystemExit(
+            f"ERROR: {path} does not contain expected marker: {marker}"
         )
 
     if not value.endswith("\n"):
@@ -41,18 +27,30 @@ def read_pem(path: Path, expected_marker: str) -> str:
     return value
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Generate the local TLS credential header for Color Rally."
+def raw_literal(name: str, value: str) -> str:
+    delimiter = "LEDARCADE_TLS"
+
+    if f"){delimiter}\"" in value:
+        raise SystemExit(
+            f"ERROR: PEM content contains raw-string delimiter: {delimiter}"
+        )
+
+    return (
+        f"static const char {name}[] PROGMEM = "
+        f'R"{delimiter}({value}){delimiter}";'
     )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--domain",
         default=DEFAULT_DOMAIN,
-        help=f"Certificate domain; default: {DEFAULT_DOMAIN}",
     )
     args = parser.parse_args()
 
     secret_dir = ROOT / "secrets" / "tls" / args.domain
+
     cert_path = secret_dir / "fullchain.pem"
     key_path = secret_dir / "privkey.pem"
 
@@ -68,6 +66,7 @@ def main() -> int:
         / "generated"
         / "TlsCredentials.h"
     )
+
     output.parent.mkdir(parents=True, exist_ok=True)
 
     content = "\n".join(
@@ -76,10 +75,12 @@ def main() -> int:
             "",
             "#include <Arduino.h>",
             "",
-            "// Generated locally by tools/generate_tls_header.py.",
-            "// Contains a private key. Never commit this file.",
+            "// Generated locally. Contains a private key.",
+            "// Never commit this file.",
             f'static const char TLS_HOSTNAME[] = "{args.domain}";',
+            "",
             raw_literal("TLS_CERT_PEM", cert_pem),
+            "",
             raw_literal("TLS_PRIVATE_KEY_PEM", key_pem),
             "",
             "static const size_t TLS_CERT_PEM_LEN = sizeof(TLS_CERT_PEM);",
@@ -95,3 +96,8 @@ def main() -> int:
     output.chmod(0o600)
 
     print(f"Generated: {output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
