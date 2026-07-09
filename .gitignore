@@ -8,3 +8,7 @@ build/
 .vscode/
 .idea/
 .DS_Store
+
+# Local TLS credentials
+secrets/tls/
+firmware/arduino/color_rally/src/generated/TlsCredentials.h
