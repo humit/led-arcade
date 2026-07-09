@@ -7,7 +7,7 @@ The AP is open for onboarding speed:
 ```text
 SSID: LED-Arcade
 Auth: none
-IP: 10.10.10.1
+IP: 10.10.10.10
 ```
 
 This makes both QR scan and "tap WiFi network" UX easier.

@@ -54,7 +54,7 @@ button:active{transform:scale(.985);filter:brightness(1.25)}
     <button id="muteBtn" class="smallBtn muteBtn">SESSİZ</button>
   </div>
   <div id="status" class="status">Hazır</div>
-  <div class="tiny">SSID: LED-Arcade · IP: 10.10.10.1</div>
+  <div class="tiny">SSID: LED-Arcade · IP: 10.10.10.10</div>
 </main>
 <script>
 function getCid(){let cid=localStorage.getItem("ledArcadeColorRallyCid");if(!cid){cid="c"+Math.random().toString(16).slice(2)+Date.now().toString(16);localStorage.setItem("ledArcadeColorRallyCid",cid)}return cid}
