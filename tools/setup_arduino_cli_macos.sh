@@ -29,7 +29,8 @@ echo "Installing ESP32 core..."
 arduino-cli core install esp32:esp32
 
 echo "Installing required libraries..."
-arduino-cli lib install FastLED
+arduino-cli lib install "FastLED@3.10.5"
+arduino-cli lib install "WebSockets@2.7.2"
 
 echo
 echo "Installed Arduino CLI:"

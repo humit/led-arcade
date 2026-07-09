@@ -5,14 +5,18 @@
 #include "src/hardware/LedRenderer.h"
 #include "src/session/SessionManager.h"
 #include "src/games/color_rally/ColorRallyGame.h"
+#include "src/games/motion_duel/MotionDuelGame.h"
+#include "src/net/RealtimeTransport.h"
 #include "src/net/CaptivePortal.h"
 
 AudioOut audio;
 SessionManager sessions;
 SystemState systemState;
 ColorRallyGame game;
+MotionDuelGame motionDemo;
 LedRenderer renderer;
 CaptivePortal portal;
+RealtimeTransport realtime;
 
 uint32_t lastFrameMs = 0;
 
@@ -23,7 +27,7 @@ void setup() {
   Serial.println();
   Serial.println("===================================");
   Serial.println("LED Arcade Platform");
-  Serial.println("Game: Color Rally");
+  Serial.println("Game: Motion Controller Demo");
   Serial.println("Layered Arduino repo baseline");
   Serial.println("===================================");
 
@@ -32,8 +36,10 @@ void setup() {
 
   sessions.begin();
   game.begin();
+  motionDemo.begin();
 
   portal.begin(sessions, game, audio, systemState);
+  realtime.begin(sessions, motionDemo);
 
   Serial.print("[INFO] LED_COUNT: ");
   Serial.println(LED_COUNT);
@@ -53,6 +59,7 @@ void setup() {
 
 void loop() {
   portal.loop();
+  realtime.loop();
 
   uint32_t now = millis();
 
@@ -66,9 +73,9 @@ void loop() {
     lastFrameMs = now;
 
     if (!systemState.gamePaused) {
-      game.update(dtMs, sessions, audio);
+      motionDemo.update(dtMs, sessions, audio);
     }
 
-    renderer.render(sessions, game, systemState);
+    renderer.renderMotionDemo(sessions, motionDemo);
   }
 }

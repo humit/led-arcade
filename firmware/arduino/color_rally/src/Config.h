@@ -9,9 +9,18 @@ static const char* AP_PASSWORD = "";
 
 static const byte DNS_PORT = 53;
 
-static const IPAddress AP_IP(10, 10, 10, 1);
-static const IPAddress AP_GATEWAY(10, 10, 10, 1);
+static const IPAddress AP_IP(10, 10, 10, 10);
+static const IPAddress AP_GATEWAY(10, 10, 10, 10);
 static const IPAddress AP_SUBNET(255, 255, 255, 0);
+
+static const uint16_t WS_PORT = 81;
+
+// -------------------- Motion demo tuning --------------------
+
+static const uint32_t MOTION_STALE_MS = 350;
+static const float MOTION_ACCELERATION = 110.0f;
+static const float MOTION_DRAG_PER_SECOND = 3.2f;
+static const float MOTION_MAX_SPEED = 85.0f;
 
 // -------------------- Hardware --------------------
 

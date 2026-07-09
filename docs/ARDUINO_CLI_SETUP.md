@@ -43,13 +43,18 @@ WEMOS LOLIN32 Lite    esp32:esp32:lolin32-lite
 Avoid esp32-bluepad32:* targets for the current captive portal / FastLED firmware unless explicitly working on Bluepad32 controller experiments.
 
 4. Install required libraries
-arduino-cli lib install FastLED
+arduino-cli lib install "FastLED@3.10.5"
+arduino-cli lib install "WebSockets@2.7.2"
 
 The following libraries are provided by the ESP32 core and do not need separate installation:
 
 WiFi
 WebServer
 DNSServer
+
+Additional real-time transport library:
+
+WebSockets 2.7.2
 5. Compile Color Rally
 
 From repo root:

@@ -6,6 +6,7 @@
 #include "../SystemState.h"
 #include "../session/SessionManager.h"
 #include "../games/color_rally/ColorRallyGame.h"
+#include "../games/motion_duel/MotionDuelGame.h"
 
 class LedRenderer {
 public:
@@ -15,6 +16,25 @@ public:
     FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, LED_COUNT);
     FastLED.setBrightness(LED_BRIGHTNESS);
     FastLED.clear(true);
+  }
+
+  void renderMotionDemo(const SessionManager& sessions, const MotionDuelGame& motion) {
+    fadeAll(82);
+
+    dimSet(0, sideColor(sessions, BLUE_SIDE), 130);
+    dimSet(LED_COUNT - 1, sideColor(sessions, PINK_SIDE), 130);
+
+    const uint32_t now = millis();
+    drawForceMeter(BLUE_SIDE, motion.activeForce(BLUE_SIDE, now), sideColor(sessions, BLUE_SIDE));
+    drawForceMeter(PINK_SIDE, motion.activeForce(PINK_SIDE, now), sideColor(sessions, PINK_SIDE));
+
+    const int head = (int)roundf(motion.ballPos);
+    const int direction = motion.velocity >= 0.0f ? 1 : -1;
+    setPixelSafe(head, CRGB::White);
+    addPixelSafe(head - direction, CRGB(110, 110, 110));
+    addPixelSafe(head - 2 * direction, CRGB(45, 45, 45));
+
+    FastLED.show();
   }
 
   void render(const SessionManager& sessions, const ColorRallyGame& game, const SystemState& systemState) {
@@ -38,6 +58,17 @@ public:
   }
 
 private:
+  void drawForceMeter(uint8_t side, float value, CRGB color) {
+    const int meterLen = 12;
+    const int lit = (int)roundf(fabsf(value) * meterLen);
+
+    for (int i = 0; i < meterLen; i++) {
+      int idx = side == BLUE_SIDE ? 2 + i : LED_COUNT - 3 - i;
+      uint8_t scale = i < lit ? 90 : 8;
+      dimSet(idx, color, scale);
+    }
+  }
+
   CRGB gameColor(uint8_t colorType) {
     if (colorType == C_RED) return CRGB::Red;
     if (colorType == C_GREEN) return CRGB::Green;
