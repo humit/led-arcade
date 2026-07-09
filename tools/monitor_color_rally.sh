@@ -1,25 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKETCH_DIR="firmware/arduino/color_rally"
-
-# Default: WEMOS LOLIN32 Lite + No OTA large app partition + stable upload speed.
-FQBN="${FQBN:-esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200}"
-
 PORT="${1:-}"
 
 if [[ -z "$PORT" ]]; then
-  PORTS="$(ls /dev/cu.usbserial* 2>/dev/null || true)"
+  PORTS="$(find /dev -maxdepth 1 -name 'cu.usbserial*' -print 2>/dev/null || true)"
   COUNT="$(printf "%s\n" "$PORTS" | sed '/^$/d' | wc -l | tr -d ' ')"
 
   if [[ "$COUNT" == "0" ]]; then
     echo "ERROR: No /dev/cu.usbserial* port found."
     echo
-    echo "Available Arduino boards/ports:"
+    echo "Arduino CLI ports:"
     arduino-cli board list || true
     echo
     echo "Other likely serial ports:"
-    ls /dev/cu.* 2>/dev/null | grep -i "usb\|wch\|serial\|slab" || true
+    find /dev -maxdepth 1 \
+      \( -name 'cu.usb*' -o -name 'cu.wch*' -o -name 'cu.SLAB*' \) \
+      -print 2>/dev/null || true
     exit 1
   fi
 
@@ -27,7 +24,7 @@ if [[ -z "$PORT" ]]; then
     echo "ERROR: Multiple /dev/cu.usbserial* ports found:"
     printf "%s\n" "$PORTS"
     echo
-    echo "Pass one explicitly, for example:"
+    echo "Pass one explicitly:"
     echo "  $0 /dev/cu.usbserial-XXXX"
     exit 1
   fi
@@ -35,13 +32,13 @@ if [[ -z "$PORT" ]]; then
   PORT="$(printf "%s\n" "$PORTS" | sed '/^$/d' | head -n 1)"
 fi
 
-echo "Uploading Color Rally"
-echo "  Sketch: $SKETCH_DIR"
-echo "  Port:   $PORT"
-echo "  FQBN:   $FQBN"
+echo "Monitoring Color Rally"
+echo "  Port: $PORT"
+echo "  Baud: 115200"
+echo
+echo "Exit with Ctrl+C"
 echo
 
-arduino-cli upload \
-  -p "$PORT" \
-  --fqbn "$FQBN" \
-  "$SKETCH_DIR"
+arduino-cli monitor \
+  --port "$PORT" \
+  --config baudrate=115200
