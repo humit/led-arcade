@@ -12,7 +12,7 @@ Current MVP game: **Color Rally**.
 - LED count: 200
 - Network: open AP captive portal
 - AP SSID: `LED-Arcade`
-- AP IP: `10.10.10.1`
+- AP IP: `10.10.10.10`
 
 ## Build
 
