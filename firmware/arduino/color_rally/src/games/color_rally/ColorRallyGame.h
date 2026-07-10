@@ -199,6 +199,37 @@ public:
     }
   }
 
+  bool handleMotionHit(
+    uint8_t side,
+    SessionManager& sessions,
+    AudioOut& audio,
+    String& message
+  ) {
+    if (state.mode != MODE_PLAYING) {
+      message = "wait";
+      return false;
+    }
+
+    if (!sessions.slots[side].human) {
+      message = "cpu slot";
+      return false;
+    }
+
+    if (state.targetSide != side) {
+      message = "not your turn";
+      return false;
+    }
+
+    if (!isBallInHitZone(side)) {
+      message = "outside hit zone";
+      return false;
+    }
+
+    bounceFrom(side, false, sessions, audio);
+    message = "motion hit";
+    return true;
+  }
+
   bool handlePress(uint8_t side, uint8_t pressedColor, SessionManager& sessions, AudioOut& audio, String& message) {
     if (state.mode != MODE_PLAYING) {
       message = "wait";

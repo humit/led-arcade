@@ -6,7 +6,7 @@
 #include "src/session/SessionManager.h"
 #include "src/games/color_rally/ColorRallyGame.h"
 #include "src/games/motion_duel/MotionDuelGame.h"
-#include "src/net/RealtimeTransport.h"
+#include "src/net/SecureMotionServer.h"
 #include "src/net/CaptivePortal.h"
 
 AudioOut audio;
@@ -16,7 +16,7 @@ ColorRallyGame game;
 MotionDuelGame motionDemo;
 LedRenderer renderer;
 CaptivePortal portal;
-RealtimeTransport realtime;
+SecureMotionServer secureMotion;
 
 uint32_t lastFrameMs = 0;
 
@@ -27,7 +27,7 @@ void setup() {
   Serial.println();
   Serial.println("===================================");
   Serial.println("LED Arcade Platform");
-  Serial.println("Game: Motion Controller Demo");
+  Serial.println("Game: Motion Badminton - Human vs CPU");
   Serial.println("Layered Arduino repo baseline");
   Serial.println("===================================");
 
@@ -39,7 +39,7 @@ void setup() {
   motionDemo.begin();
 
   portal.begin(sessions, game, audio, systemState);
-  realtime.begin(sessions, motionDemo);
+  secureMotion.begin(sessions, motionDemo, audio);
 
   Serial.print("[INFO] LED_COUNT: ");
   Serial.println(LED_COUNT);
@@ -59,7 +59,6 @@ void setup() {
 
 void loop() {
   portal.loop();
-  realtime.loop();
 
   uint32_t now = millis();
 
@@ -73,9 +72,46 @@ void loop() {
     lastFrameMs = now;
 
     if (!systemState.gamePaused) {
-      motionDemo.update(dtMs, sessions, audio);
+      game.update(dtMs, sessions, audio);
+
+      const uint32_t gestureNow = millis();
+
+      for (uint8_t side = BLUE_SIDE; side <= PINK_SIDE; side++) {
+        if (!sessions.slots[side].human) {
+          continue;
+        }
+
+        const bool hitAllowed =
+          game.state.mode == MODE_PLAYING &&
+          game.state.targetSide == side &&
+          game.isBallInHitZone(side);
+
+        if (
+          motionDemo.consumeLeftTilt(
+            side,
+            gestureNow,
+            hitAllowed
+          )
+        ) {
+          String message;
+
+          const bool hit = game.handleMotionHit(
+            side,
+            sessions,
+            audio,
+            message
+          );
+
+          Serial.print("[MOTION RESULT] ");
+          Serial.print(sideName(side));
+          Serial.print(" hit=");
+          Serial.print(hit ? "yes" : "no");
+          Serial.print(" message=");
+          Serial.println(message);
+        }
+      }
     }
 
-    renderer.renderMotionDemo(sessions, motionDemo);
+    renderer.render(sessions, game, systemState);
   }
 }

@@ -6,7 +6,7 @@
 #include "../Config.h"
 #include "../Types.h"
 #include "../SystemState.h"
-#include "../controller/ControllerPage.h"
+#include "../controller/CaptiveLaunchPage.h"
 #include "../session/SessionManager.h"
 #include "../games/color_rally/ColorRallyGame.h"
 #include "../hardware/AudioOut.h"
@@ -118,7 +118,7 @@ private:
   void handleRoot() {
     logRequest("root");
     sendNoCacheHeaders();
-    server.send_P(200, "text/html", CONTROLLER_HTML);
+    server.send_P(200, "text/html", CAPTIVE_LAUNCH_HTML);
   }
 
   void redirectToRoot(const char* name) {
