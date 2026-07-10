@@ -77,3 +77,20 @@ Common commands:
 ./tools/upload_color_rally.sh
 ```
 
+
+## 8×32 Pixel Derby
+
+New multiplayer demo:
+
+```bash
+./tools/compile_pixel_derby.sh
+./tools/upload_pixel_derby.sh
+```
+
+Dependencies:
+
+- FastLED
+- WebSockets by Markus Sattler (`arduinoWebSockets`)
+
+Flow: platform selector → 8×32 game selector → lobby → 2–8 player Pixel Derby.
+Realtime controller traffic uses WebSocket port 81; HTTP remains only for the captive portal page.
