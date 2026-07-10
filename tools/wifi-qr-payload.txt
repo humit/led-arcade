@@ -1,1 +1,1 @@
-WIFI:T:nopass;S:LED-Arcade;;
+WIFI:T:nopass;S:! OYUNA KATIL !;;

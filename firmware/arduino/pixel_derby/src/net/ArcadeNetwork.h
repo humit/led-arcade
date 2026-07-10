@@ -102,6 +102,12 @@ private:
       return;
     }
 
+    if (message == "BACK_TO_GAMES") {
+      game->backToGames(*players);
+      broadcastState();
+      return;
+    }
+
     const int slot = players->findByClient(client);
     if (slot < 0) return;
     players->touch(client, millis());
@@ -112,10 +118,13 @@ private:
     }
 
     if (message == "SELECT_PLATFORM|matrix_8x32") game->selectPlatform();
-    else if (message == "SELECT_GAME|pixel_derby") game->selectGame(*players);
+    else if (message == "SELECT_GAME|pixel_derby") game->selectGame(GameId::PIXEL_DERBY, *players);
+    else if (message == "SELECT_GAME|tron_arena") game->selectGame(GameId::TRON_ARENA, *players);
     else if (message.startsWith("READY|")) game->setReady(slot, commandArg(message) == "1", *players, *audio);
     else if (message == "START") game->start(slot, *players, *audio);
     else if (message == "TAP") game->tap(slot, *players, *audio);
+    else if (message == "TURN_LEFT") game->turn(slot, true, *players);
+    else if (message == "TURN_RIGHT") game->turn(slot, false, *players);
     else if (message == "WAIT|1") game->setWaiting(slot, true, *players);
     else if (message == "WAIT|0") game->setWaiting(slot, false, *players);
     else if (message == "LEAVE") { players->leave(slot); sendState(client); broadcastState(); return; }
@@ -130,7 +139,8 @@ private:
     json.reserve(1900);
     json = "{\"stage\":\"";
     json += stageName(game->stage);
-    json += "\",\"you\":" + String(you);
+    json += "\",\"game\":\"" + String(gameName(game->selectedGame)) + "\"";
+    json += ",\"you\":" + String(you);
     json += ",\"host\":" + String(players->hostSlot());
     json += ",\"connected\":" + String(players->connectedCount());
     json += ",\"active\":" + String(players->activeCount());
@@ -147,6 +157,8 @@ private:
     json += ",\"bossRemainingMs\":" + String(game->bossRemainingMs());
     json += ",\"bossDefeated\":" + String(game->bossDefeated ? "true" : "false");
     json += ",\"bossPulseCount\":" + String(game->bossPulseCount);
+    json += ",\"announcePhase\":" + String(game->announcePhase);
+    json += ",\"displayLanguage\":\"" + String(DISPLAY_LANGUAGE_TR ? "tr" : "en") + "\"";
     json += ",\"topRaiderSlot\":" + String(game->topRaiderSlot);
     json += ",\"players\":[";
 
@@ -158,6 +170,7 @@ private:
       first = false;
       json += "{\"slot\":" + String(i);
       json += ",\"connected\":" + String(p.connected ? "true" : "false");
+      json += ",\"isCpu\":" + String(p.isCpu ? "true" : "false");
       json += ",\"ready\":" + String(p.ready ? "true" : "false");
       json += ",\"waiting\":" + String(p.waiting ? "true" : "false");
       json += ",\"position\":" + String(p.position);
@@ -173,7 +186,10 @@ private:
       json += ",\"bossDamage\":" + String(p.bossDamage);
       json += ",\"bossCandidateScore\":" + String(p.bossCandidateScore);
       json += ",\"bossEnergy\":" + String(p.bossEnergy);
-      json += ",\"stunnedMs\":" + String(game->stunRemainingMs(p)) + "}";
+      json += ",\"stunnedMs\":" + String(game->stunRemainingMs(p));
+      json += ",\"tronX\":" + String(p.tronX);
+      json += ",\"tronY\":" + String(p.tronY);
+      json += ",\"tronAlive\":" + String(p.tronAlive ? "true" : "false") + "}";
     }
     json += "]}";
     ws.sendTXT(client, json);

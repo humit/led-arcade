@@ -6,6 +6,7 @@ enum class ArcadeStage : uint8_t {
   PLATFORM_SELECT,
   GAME_SELECT,
   LOBBY,
+  ANNOUNCE,
   COUNTDOWN,
   RACING,
   RESULT,
@@ -13,9 +14,14 @@ enum class ArcadeStage : uint8_t {
   BOSS_RESULT
 };
 
+enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA };
+
+enum class TronDirection : uint8_t { UP, RIGHT, DOWN, LEFT };
+
 struct PlayerSlot {
   bool occupied = false;
   bool connected = false;
+  bool isCpu = false;
   bool ready = false;
   bool waiting = false;
   uint8_t wsClient = 255;
@@ -40,6 +46,11 @@ struct PlayerSlot {
   uint16_t bossCandidateScore = 0;
   uint8_t bossEnergy = 0;
   uint32_t stunnedUntilMs = 0;
+
+  int8_t tronX = -1;
+  int8_t tronY = -1;
+  TronDirection tronDirection = TronDirection::RIGHT;
+  bool tronAlive = false;
 };
 
 inline const char* stageName(ArcadeStage stage) {
@@ -47,6 +58,7 @@ inline const char* stageName(ArcadeStage stage) {
     case ArcadeStage::PLATFORM_SELECT: return "platform";
     case ArcadeStage::GAME_SELECT: return "games";
     case ArcadeStage::LOBBY: return "lobby";
+    case ArcadeStage::ANNOUNCE: return "announce";
     case ArcadeStage::COUNTDOWN: return "countdown";
     case ArcadeStage::RACING: return "race";
     case ArcadeStage::RESULT: return "result";
@@ -54,4 +66,12 @@ inline const char* stageName(ArcadeStage stage) {
     case ArcadeStage::BOSS_RESULT: return "boss_result";
   }
   return "platform";
+}
+
+inline const char* gameName(GameId game) {
+  switch (game) {
+    case GameId::PIXEL_DERBY: return "pixel_derby";
+    case GameId::TRON_ARENA: return "tron_arena";
+    default: return "none";
+  }
 }

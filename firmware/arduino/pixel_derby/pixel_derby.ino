@@ -19,8 +19,8 @@ void setup() {
   delay(500);
   Serial.println();
   Serial.println("===================================");
-  Serial.println("LED Arcade / 8x32 Pixel Derby");
-  Serial.println("WebSocket multiplayer MVP");
+  Serial.println("LED Arcade / 8x32 Multi-game");
+  Serial.println("Pixel Derby + Tron Arena");
   Serial.println("===================================");
 
   audio.begin();
