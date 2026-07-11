@@ -70,3 +70,10 @@ static const uint32_t RAIDER_FIRE_RAPID_1_MS = 420;
 static const uint32_t RAIDER_FIRE_RAPID_2_MS = 270;
 static const uint32_t RAIDER_BULLET_TICK_MS = 85;
 static const uint8_t RAIDER_MAX_BULLETS = 12;
+
+// Color Clash
+static const uint8_t CLASH_MIN_PLAYERS = 2;
+static const uint8_t CLASH_MAX_PLAYERS = 4;
+static const uint32_t CLASH_DURATION_MS = 30000;
+static const uint32_t CLASH_TICK_MS = 250;
+static const uint32_t CLASH_CPU_DECISION_MS = 250;

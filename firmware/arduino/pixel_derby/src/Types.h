@@ -14,7 +14,7 @@ enum class ArcadeStage : uint8_t {
   BOSS_RESULT
 };
 
-enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA, PIXEL_RAIDER };
+enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA, PIXEL_RAIDER, COLOR_CLASH };
 
 enum class TronDirection : uint8_t { UP, RIGHT, DOWN, LEFT };
 
@@ -51,6 +51,10 @@ struct PlayerSlot {
   int8_t tronY = -1;
   TronDirection tronDirection = TronDirection::RIGHT;
   bool tronAlive = false;
+
+  int8_t clashX = -1;
+  int8_t clashY = -1;
+  TronDirection clashDirection = TronDirection::RIGHT;
 };
 
 inline const char* stageName(ArcadeStage stage) {
@@ -73,6 +77,7 @@ inline const char* gameName(GameId game) {
     case GameId::PIXEL_DERBY: return "pixel_derby";
     case GameId::TRON_ARENA: return "tron_arena";
     case GameId::PIXEL_RAIDER: return "pixel_raider";
+    case GameId::COLOR_CLASH: return "color_clash";
     default: return "none";
   }
 }

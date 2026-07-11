@@ -121,6 +121,7 @@ private:
     else if (message == "SELECT_GAME|pixel_derby") game->selectGame(GameId::PIXEL_DERBY, *players);
     else if (message == "SELECT_GAME|tron_arena") game->selectGame(GameId::TRON_ARENA, *players);
     else if (message == "SELECT_GAME|pixel_raider") game->selectGame(GameId::PIXEL_RAIDER, *players);
+    else if (message == "SELECT_GAME|color_clash") game->selectGame(GameId::COLOR_CLASH, *players);
     else if (message.startsWith("READY|")) game->setReady(slot, commandArg(message) == "1", *players, *audio);
     else if (message == "START") game->start(slot, *players, *audio);
     else if (message == "TAP") game->tap(slot, *players, *audio);
@@ -128,6 +129,10 @@ private:
     else if (message == "TURN_RIGHT") game->turn(slot, false, *players);
     else if (message == "MOVE_UP") game->raiderMove(slot, -1, *players, *audio);
     else if (message == "MOVE_DOWN") game->raiderMove(slot, 1, *players, *audio);
+    else if (message == "CLASH_UP") game->clashMove(slot, TronDirection::UP, *players);
+    else if (message == "CLASH_RIGHT") game->clashMove(slot, TronDirection::RIGHT, *players);
+    else if (message == "CLASH_DOWN") game->clashMove(slot, TronDirection::DOWN, *players);
+    else if (message == "CLASH_LEFT") game->clashMove(slot, TronDirection::LEFT, *players);
     else if (message == "WAIT|1") game->setWaiting(slot, true, *players);
     else if (message == "WAIT|0") game->setWaiting(slot, false, *players);
     else if (message == "LEAVE") { players->leave(slot); sendState(client); broadcastState(); return; }
@@ -163,6 +168,10 @@ private:
     json += ",\"announcePhase\":" + String(game->announcePhase);
     json += ",\"displayLanguage\":\"" + String(DISPLAY_LANGUAGE_TR ? "tr" : "en") + "\"";
     json += ",\"topRaiderSlot\":" + String(game->topRaiderSlot);
+    json += ",\"clashRemainingMs\":" + String(game->clashRemainingMs());
+    json += ",\"clashCounts\":[";
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) { if (i) json += ','; json += String(game->clashCounts[i]); }
+    json += "]";
     json += ",\"players\":[";
 
     bool first = true;
@@ -192,7 +201,9 @@ private:
       json += ",\"stunnedMs\":" + String(game->stunRemainingMs(p));
       json += ",\"tronX\":" + String(p.tronX);
       json += ",\"tronY\":" + String(p.tronY);
-      json += ",\"tronAlive\":" + String(p.tronAlive ? "true" : "false") + "}";
+      json += ",\"tronAlive\":" + String(p.tronAlive ? "true" : "false");
+      json += ",\"clashX\":" + String(p.clashX);
+      json += ",\"clashY\":" + String(p.clashY) + "}";
     }
     json += "]}";
     ws.sendTXT(client, json);

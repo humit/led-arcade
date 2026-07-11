@@ -205,6 +205,7 @@ public:
       p.bossEnergy = 0;
       p.stunnedUntilMs = 0;
       p.tronX = -1; p.tronY = -1; p.tronAlive = false;
+      p.clashX = -1; p.clashY = -1; p.clashDirection = TronDirection::RIGHT;
       if (resetReady) p.ready = false;
     }
   }
@@ -225,6 +226,7 @@ public:
       p.bossEnergy = 0;
       p.stunnedUntilMs = 0;
       p.tronX = -1; p.tronY = -1; p.tronAlive = false;
+      p.clashX = -1; p.clashY = -1; p.clashDirection = TronDirection::RIGHT;
     }
   }
 

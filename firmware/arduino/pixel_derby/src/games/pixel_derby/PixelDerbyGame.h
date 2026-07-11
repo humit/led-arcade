@@ -54,6 +54,14 @@ public:
   int8_t raiderCorridorY = 3;
   uint8_t raiderCorridorWidth = 4;
 
+  // Color Clash state
+  uint8_t clashPaint[LED_COUNT] = {0}; // 0 neutral, slot+1 owner
+  uint16_t clashCounts[MAX_PLAYERS] = {0};
+  uint32_t clashStartedAtMs = 0;
+  uint32_t clashEndsAtMs = 0;
+  uint32_t clashLastTickMs = 0;
+  uint32_t clashLastCpuDecisionMs = 0;
+
   void selectPlatform() {
     if (stage == ArcadeStage::PLATFORM_SELECT) stage = ArcadeStage::GAME_SELECT;
   }
@@ -106,6 +114,7 @@ public:
       if (!players.allConnectedReady()) return false;
     }
     if (selectedGame == GameId::TRON_ARENA && (active < TRON_MIN_PLAYERS || active > TRON_MAX_PLAYERS)) return false;
+    if (selectedGame == GameId::COLOR_CLASH && (active < CLASH_MIN_PLAYERS || active > CLASH_MAX_PLAYERS)) return false;
 
     players.resetRound(false);
     winner = -1;
@@ -115,6 +124,7 @@ public:
     raceStartedAtMs = 0;
     if (selectedGame == GameId::TRON_ARENA) prepareTron(players);
     if (selectedGame == GameId::PIXEL_RAIDER) prepareRaider();
+    if (selectedGame == GameId::COLOR_CLASH) prepareClash(players);
     stage = ArcadeStage::COUNTDOWN;
     audio.countdown(countdownValue);
     return true;
@@ -175,6 +185,14 @@ public:
     return true;
   }
 
+  bool clashMove(uint8_t slot, TronDirection direction, PlayerManager& players) {
+    if (selectedGame != GameId::COLOR_CLASH || stage != ArcadeStage::RACING || slot >= MAX_PLAYERS) return false;
+    PlayerSlot& p = players.players[slot];
+    if (!p.occupied || !p.connected || p.waiting || p.isCpu) return false;
+    p.clashDirection = direction;
+    return true;
+  }
+
   bool raiderMove(uint8_t slot, int8_t delta, PlayerManager& players, AudioOut& audio) {
     if (selectedGame != GameId::PIXEL_RAIDER || stage != ArcadeStage::RACING || slot >= MAX_PLAYERS) return false;
     PlayerSlot& p = players.players[slot];
@@ -183,7 +201,7 @@ public:
     if (next < 0 || next >= MATRIX_HEIGHT) return false;
     raiderPlayerY = next;
     uint8_t& cell = raiderCells[raiderIndex(RAIDER_PLAYER_X, raiderPlayerY)];
-    if (cell >= 3) collectRaiderCell(cell);
+    if (cell >= 3) { audio.powerUp(); collectRaiderCell(cell); }
     else if (cell != 0) {
       if (raiderShield) { raiderShield = false; cell = 0; }
       else finishRaider(players, audio, slot);
@@ -253,6 +271,12 @@ public:
         raiderLastFireMs = now - RAIDER_FIRE_START_MS;
         raiderLastBulletTickMs = now;
       }
+      if (selectedGame == GameId::COLOR_CLASH) {
+        clashStartedAtMs = now;
+        clashEndsAtMs = now + CLASH_DURATION_MS;
+        clashLastTickMs = now;
+        clashLastCpuDecisionMs = now;
+      }
       stage = ArcadeStage::RACING;
       return;
     }
@@ -260,6 +284,7 @@ public:
     if (stage == ArcadeStage::BOSS && now >= bossEndsAtMs) finishBoss(players, audio, false);
     if (stage == ArcadeStage::RACING && selectedGame == GameId::TRON_ARENA) updateTron(players, audio, now);
     if (stage == ArcadeStage::RACING && selectedGame == GameId::PIXEL_RAIDER) updateRaider(players, audio, now);
+    if (stage == ArcadeStage::RACING && selectedGame == GameId::COLOR_CLASH) updateClash(players, audio, now);
   }
 
   uint32_t bossRemainingMs() const {
@@ -273,6 +298,12 @@ public:
     return now >= p.stunnedUntilMs ? 0 : p.stunnedUntilMs - now;
   }
 
+  uint32_t clashRemainingMs() const {
+    if (selectedGame != GameId::COLOR_CLASH || stage != ArcadeStage::RACING) return 0;
+    const uint32_t now = millis();
+    return now >= clashEndsAtMs ? 0 : clashEndsAtMs - now;
+  }
+
   uint8_t tronAliveCount(const PlayerManager& players) const {
     uint8_t count = 0;
     for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
@@ -283,6 +314,144 @@ public:
   }
 
 private:
+  uint16_t clashIndex(uint8_t x, uint8_t y) const { return uint16_t(y) * MATRIX_WIDTH + x; }
+
+  uint8_t clashActiveOrder(const PlayerManager& players, uint8_t slot) const {
+    uint8_t order = 0;
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+      const PlayerSlot& p = players.players[i];
+      if (!p.occupied || !p.connected || p.waiting) continue;
+      if (i == slot) return order;
+      order++;
+    }
+    return 0;
+  }
+
+  void paintClashCell(uint8_t x, uint8_t y, uint8_t slot) {
+    clashPaint[clashIndex(x, y)] = slot + 1;
+  }
+
+  void prepareClash(PlayerManager& players) {
+    memset(clashPaint, 0, sizeof(clashPaint));
+    memset(clashCounts, 0, sizeof(clashCounts));
+    const uint8_t active = players.activeCount();
+    for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
+      PlayerSlot& p = players.players[slot];
+      if (!p.occupied || !p.connected || p.waiting) continue;
+      const uint8_t order = clashActiveOrder(players, slot);
+      if (active == 2) {
+        p.clashX = order == 0 ? 3 : 28; p.clashY = order == 0 ? 3 : 4;
+        p.clashDirection = order == 0 ? TronDirection::RIGHT : TronDirection::LEFT;
+      } else if (active == 3) {
+        static const int8_t xs[3] = {3, 28, 15}; static const int8_t ys[3] = {1, 1, 6};
+        static const TronDirection ds[3] = {TronDirection::RIGHT, TronDirection::LEFT, TronDirection::UP};
+        p.clashX = xs[order]; p.clashY = ys[order]; p.clashDirection = ds[order];
+      } else {
+        static const int8_t xs[4] = {3, 28, 3, 28}; static const int8_t ys[4] = {1, 1, 6, 6};
+        static const TronDirection ds[4] = {TronDirection::RIGHT, TronDirection::LEFT, TronDirection::RIGHT, TronDirection::LEFT};
+        p.clashX = xs[order]; p.clashY = ys[order]; p.clashDirection = ds[order];
+      }
+      for (int8_t dy = 0; dy <= 1; dy++) for (int8_t dx = 0; dx <= 1; dx++)
+        paintClashCell((p.clashX + dx) % MATRIX_WIDTH, (p.clashY + dy) % MATRIX_HEIGHT, slot);
+    }
+    recalculateClashCounts();
+  }
+
+  void clashNext(const PlayerSlot& p, TronDirection direction, int8_t& x, int8_t& y) const {
+    x = p.clashX; y = p.clashY;
+    if (direction == TronDirection::UP) y--;
+    else if (direction == TronDirection::RIGHT) x++;
+    else if (direction == TronDirection::DOWN) y++;
+    else x--;
+    if (x < 0) x = MATRIX_WIDTH - 1; else if (x >= MATRIX_WIDTH) x = 0;
+    if (y < 0) y = MATRIX_HEIGHT - 1; else if (y >= MATRIX_HEIGHT) y = 0;
+  }
+
+  int clashDirectionScore(const PlayerSlot& cpu, uint8_t slot, TronDirection direction) const {
+    int8_t x, y; clashNext(cpu, direction, x, y);
+    int score = clashPaint[clashIndex(x, y)] == slot + 1 ? 0 : 8;
+    PlayerSlot probe = cpu; probe.clashX = x; probe.clashY = y;
+    for (uint8_t step = 0; step < 5; step++) {
+      clashNext(probe, direction, x, y);
+      const uint8_t owner = clashPaint[clashIndex(x, y)];
+      score += owner == slot + 1 ? 0 : owner == 0 ? 2 : 3;
+      probe.clashX = x; probe.clashY = y;
+    }
+    return score + random(4);
+  }
+
+  void steerCpuClash(PlayerManager& players) {
+    const int slot = players.cpuSlot();
+    if (slot < 0) return;
+    PlayerSlot& cpu = players.players[slot];
+    TronDirection best = cpu.clashDirection; int bestScore = -32768;
+    for (uint8_t d = 0; d < 4; d++) {
+      TronDirection direction = TronDirection(d);
+      const int score = clashDirectionScore(cpu, slot, direction);
+      if (score > bestScore) { bestScore = score; best = direction; }
+    }
+    cpu.clashDirection = best;
+  }
+
+  void recalculateClashCounts() {
+    memset(clashCounts, 0, sizeof(clashCounts));
+    for (uint16_t i = 0; i < LED_COUNT; i++) {
+      const uint8_t owner = clashPaint[i];
+      if (owner > 0 && owner <= MAX_PLAYERS) clashCounts[owner - 1]++;
+    }
+  }
+
+  void finishClash(PlayerManager& players, AudioOut& audio) {
+    recalculateClashCounts();
+    int8_t bestSlot = -1; uint16_t bestCount = 0; bool tie = false;
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+      const PlayerSlot& p = players.players[i];
+      if (!p.occupied || !p.connected || p.waiting) continue;
+      if (bestSlot < 0 || clashCounts[i] > bestCount) { bestSlot = i; bestCount = clashCounts[i]; tie = false; }
+      else if (clashCounts[i] == bestCount) tie = true;
+    }
+    winner = tie ? -1 : bestSlot;
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+      PlayerSlot& p = players.players[i];
+      if (!p.occupied || !p.connected || p.waiting) continue;
+      p.totalPoints += clashCounts[i];
+    }
+    if (winner >= 0) {
+      PlayerSlot& champion = players.players[winner];
+      champion.totalPoints += 100; champion.wins++; champion.streak++; champion.bestStreak = max(champion.bestStreak, champion.streak);
+      for (uint8_t i = 0; i < MAX_PLAYERS; i++) if (i != winner && players.players[i].occupied) players.players[i].streak = 0;
+    }
+    stage = ArcadeStage::RESULT; audio.winner();
+  }
+
+  void updateClash(PlayerManager& players, AudioOut& audio, uint32_t now) {
+    if (now >= clashEndsAtMs) { finishClash(players, audio); return; }
+    if (now - clashLastCpuDecisionMs >= CLASH_CPU_DECISION_MS) {
+      clashLastCpuDecisionMs = now; steerCpuClash(players);
+    }
+    if (now - clashLastTickMs < CLASH_TICK_MS) return;
+    clashLastTickMs = now;
+
+    int8_t nextX[MAX_PLAYERS]; int8_t nextY[MAX_PLAYERS]; bool active[MAX_PLAYERS] = {false};
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+      const PlayerSlot& p = players.players[i];
+      if (!p.occupied || !p.connected || p.waiting) continue;
+      active[i] = true; clashNext(p, p.clashDirection, nextX[i], nextY[i]);
+    }
+
+    bool collision[MAX_PLAYERS] = {false};
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) if (active[i])
+      for (uint8_t j = i + 1; j < MAX_PLAYERS; j++) if (active[j] && nextX[i] == nextX[j] && nextY[i] == nextY[j]) { collision[i] = true; collision[j] = true; }
+
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+      if (!active[i]) continue;
+      PlayerSlot& p = players.players[i]; p.clashX = nextX[i]; p.clashY = nextY[i];
+      if (collision[i]) clashPaint[clashIndex(p.clashX, p.clashY)] = 0;
+      else paintClashCell(p.clashX, p.clashY, i);
+    }
+    recalculateClashCounts();
+  }
+
   uint16_t raiderIndex(uint8_t x, uint8_t y) const { return uint16_t(y) * MATRIX_WIDTH + x; }
 
   void prepareRaider() {
@@ -363,7 +532,7 @@ private:
     raiderNewRecord = raiderScore > raiderBestScore;
     if (raiderNewRecord) raiderBestScore = raiderScore;
     if (slot >= 0) { players.players[slot].totalPoints += raiderScore; players.players[slot].lastRaceMs = millis() - raceStartedAtMs; }
-    stage = ArcadeStage::RESULT; audio.winner();
+    stage = ArcadeStage::RESULT; audio.crash();
   }
 
   void updateRaider(PlayerManager& players, AudioOut& audio, uint32_t now) {
@@ -383,7 +552,7 @@ private:
     generateRaiderColumn(MATRIX_WIDTH - 1);
     raiderDistance++; raiderScore++;
     uint8_t& cell = raiderCells[raiderIndex(RAIDER_PLAYER_X, raiderPlayerY)];
-    if (cell >= 3) collectRaiderCell(cell);
+    if (cell >= 3) { audio.powerUp(); collectRaiderCell(cell); }
     else if (cell != 0) {
       if (raiderShield) { raiderShield = false; cell = 0; }
       else finishRaider(players, audio, slot);
