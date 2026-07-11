@@ -14,7 +14,7 @@ enum class ArcadeStage : uint8_t {
   BOSS_RESULT
 };
 
-enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA };
+enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA, PIXEL_RAIDER };
 
 enum class TronDirection : uint8_t { UP, RIGHT, DOWN, LEFT };
 
@@ -72,6 +72,7 @@ inline const char* gameName(GameId game) {
   switch (game) {
     case GameId::PIXEL_DERBY: return "pixel_derby";
     case GameId::TRON_ARENA: return "tron_arena";
+    case GameId::PIXEL_RAIDER: return "pixel_raider";
     default: return "none";
   }
 }

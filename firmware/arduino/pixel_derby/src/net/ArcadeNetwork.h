@@ -120,11 +120,14 @@ private:
     if (message == "SELECT_PLATFORM|matrix_8x32") game->selectPlatform();
     else if (message == "SELECT_GAME|pixel_derby") game->selectGame(GameId::PIXEL_DERBY, *players);
     else if (message == "SELECT_GAME|tron_arena") game->selectGame(GameId::TRON_ARENA, *players);
+    else if (message == "SELECT_GAME|pixel_raider") game->selectGame(GameId::PIXEL_RAIDER, *players);
     else if (message.startsWith("READY|")) game->setReady(slot, commandArg(message) == "1", *players, *audio);
     else if (message == "START") game->start(slot, *players, *audio);
     else if (message == "TAP") game->tap(slot, *players, *audio);
     else if (message == "TURN_LEFT") game->turn(slot, true, *players);
     else if (message == "TURN_RIGHT") game->turn(slot, false, *players);
+    else if (message == "MOVE_UP") game->raiderMove(slot, -1, *players, *audio);
+    else if (message == "MOVE_DOWN") game->raiderMove(slot, 1, *players, *audio);
     else if (message == "WAIT|1") game->setWaiting(slot, true, *players);
     else if (message == "WAIT|0") game->setWaiting(slot, false, *players);
     else if (message == "LEAVE") { players->leave(slot); sendState(client); broadcastState(); return; }

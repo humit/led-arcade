@@ -35,6 +35,25 @@ public:
   uint32_t tronStartedAtMs = 0;
   uint32_t cpuNextActionMs = 0;
 
+  // Pixel Raider state
+  uint8_t raiderCells[LED_COUNT] = {0}; // 0 empty, 1 wall, 2 enemy, 3 rapid, 4 spread, 5 shield
+  int8_t raiderBulletX[RAIDER_MAX_BULLETS] = {-1};
+  int8_t raiderBulletY[RAIDER_MAX_BULLETS] = {-1};
+  int8_t raiderPlayerY = 3;
+  uint8_t raiderRapidLevel = 0;
+  bool raiderSpread = false;
+  bool raiderShield = false;
+  uint32_t raiderScore = 0;
+  uint32_t raiderDistance = 0;
+  uint32_t raiderBestScore = 0;
+  bool raiderNewRecord = false;
+  uint32_t raiderLastWorldTickMs = 0;
+  uint32_t raiderLastFireMs = 0;
+  uint32_t raiderLastBulletTickMs = 0;
+  uint32_t raiderStartedAtMs = 0;
+  int8_t raiderCorridorY = 3;
+  uint8_t raiderCorridorWidth = 4;
+
   void selectPlatform() {
     if (stage == ArcadeStage::PLATFORM_SELECT) stage = ArcadeStage::GAME_SELECT;
   }
@@ -78,9 +97,14 @@ public:
   bool start(uint8_t requester, PlayerManager& players, AudioOut& audio) {
     if (stage != ArcadeStage::LOBBY) return false;
     if (requester >= MAX_PLAYERS || !players.players[requester].connected || players.players[requester].waiting) return false;
-    players.ensureAutomaticCpu();
-    if (!players.allConnectedReady()) return false;
+    if (selectedGame != GameId::PIXEL_RAIDER) players.ensureAutomaticCpu();
     const uint8_t active = players.activeCount();
+    if (selectedGame == GameId::PIXEL_RAIDER) {
+      if (active != 1 || players.readyCount() != 1) return false;
+      players.removeAutomaticCpu();
+    } else {
+      if (!players.allConnectedReady()) return false;
+    }
     if (selectedGame == GameId::TRON_ARENA && (active < TRON_MIN_PLAYERS || active > TRON_MAX_PLAYERS)) return false;
 
     players.resetRound(false);
@@ -90,6 +114,7 @@ public:
     countdownChangedAtMs = millis();
     raceStartedAtMs = 0;
     if (selectedGame == GameId::TRON_ARENA) prepareTron(players);
+    if (selectedGame == GameId::PIXEL_RAIDER) prepareRaider();
     stage = ArcadeStage::COUNTDOWN;
     audio.countdown(countdownValue);
     return true;
@@ -150,6 +175,22 @@ public:
     return true;
   }
 
+  bool raiderMove(uint8_t slot, int8_t delta, PlayerManager& players, AudioOut& audio) {
+    if (selectedGame != GameId::PIXEL_RAIDER || stage != ArcadeStage::RACING || slot >= MAX_PLAYERS) return false;
+    PlayerSlot& p = players.players[slot];
+    if (!p.occupied || !p.connected || p.waiting || p.isCpu) return false;
+    const int8_t next = raiderPlayerY + delta;
+    if (next < 0 || next >= MATRIX_HEIGHT) return false;
+    raiderPlayerY = next;
+    uint8_t& cell = raiderCells[raiderIndex(RAIDER_PLAYER_X, raiderPlayerY)];
+    if (cell >= 3) collectRaiderCell(cell);
+    else if (cell != 0) {
+      if (raiderShield) { raiderShield = false; cell = 0; }
+      else finishRaider(players, audio, slot);
+    }
+    return true;
+  }
+
   bool rematch(uint8_t requester, PlayerManager& players) {
     if (requester >= MAX_PLAYERS || !players.players[requester].connected || players.players[requester].waiting) return false;
     if (stage == ArcadeStage::RESULT) {
@@ -176,7 +217,7 @@ public:
 
   void update(PlayerManager& players, AudioOut& audio) {
     const uint32_t now = millis();
-    if (stage == ArcadeStage::LOBBY) players.ensureAutomaticCpu();
+    if (stage == ArcadeStage::LOBBY && selectedGame != GameId::PIXEL_RAIDER) players.ensureAutomaticCpu();
     if (stage == ArcadeStage::ANNOUNCE) {
       if (now - announceChangedAtMs < ANNOUNCE_STEP_MS) return;
       announceChangedAtMs = now;
@@ -206,12 +247,19 @@ public:
         tronStartedAtMs = now;
         tronLastTickMs = now;
       }
+      if (selectedGame == GameId::PIXEL_RAIDER) {
+        raiderStartedAtMs = now;
+        raiderLastWorldTickMs = now;
+        raiderLastFireMs = now - RAIDER_FIRE_START_MS;
+        raiderLastBulletTickMs = now;
+      }
       stage = ArcadeStage::RACING;
       return;
     }
     updateCpu(players, audio, now);
     if (stage == ArcadeStage::BOSS && now >= bossEndsAtMs) finishBoss(players, audio, false);
     if (stage == ArcadeStage::RACING && selectedGame == GameId::TRON_ARENA) updateTron(players, audio, now);
+    if (stage == ArcadeStage::RACING && selectedGame == GameId::PIXEL_RAIDER) updateRaider(players, audio, now);
   }
 
   uint32_t bossRemainingMs() const {
@@ -235,6 +283,113 @@ public:
   }
 
 private:
+  uint16_t raiderIndex(uint8_t x, uint8_t y) const { return uint16_t(y) * MATRIX_WIDTH + x; }
+
+  void prepareRaider() {
+    memset(raiderCells, 0, sizeof(raiderCells));
+    for (uint8_t i = 0; i < RAIDER_MAX_BULLETS; i++) { raiderBulletX[i] = -1; raiderBulletY[i] = -1; }
+    raiderPlayerY = 3; raiderRapidLevel = 0; raiderSpread = false; raiderShield = false;
+    raiderScore = 0; raiderDistance = 0; raiderNewRecord = false; raiderCorridorY = 3; raiderCorridorWidth = 4;
+    for (uint8_t x = 8; x < MATRIX_WIDTH; x++) generateRaiderColumn(x, x < 14);
+  }
+
+  uint32_t raiderWorldTickMs(uint32_t now) const {
+    const uint32_t elapsed = now - raiderStartedAtMs;
+    if (elapsed >= 60000) return RAIDER_WORLD_TICK_FAST_MS;
+    const uint32_t span = RAIDER_WORLD_TICK_START_MS - RAIDER_WORLD_TICK_FAST_MS;
+    return RAIDER_WORLD_TICK_START_MS - min<uint32_t>(span, (elapsed * span) / 60000);
+  }
+
+  uint32_t raiderFireMs() const {
+    if (raiderRapidLevel >= 2) return RAIDER_FIRE_RAPID_2_MS;
+    if (raiderRapidLevel == 1) return RAIDER_FIRE_RAPID_1_MS;
+    return RAIDER_FIRE_START_MS;
+  }
+
+  void generateRaiderColumn(uint8_t x, bool gentle = false) {
+    int8_t drift = gentle ? 0 : int8_t(random(3)) - 1;
+    raiderCorridorY = constrain(raiderCorridorY + drift, 1, 6);
+    if (!gentle && raiderDistance > 70) raiderCorridorWidth = 2; else if (!gentle && raiderDistance > 25) raiderCorridorWidth = 3; else raiderCorridorWidth = 4;
+    const int8_t half = raiderCorridorWidth / 2;
+    for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
+      const bool inCorridor = y >= raiderCorridorY - half && y <= raiderCorridorY + half;
+      raiderCells[raiderIndex(x, y)] = inCorridor ? 0 : 1;
+    }
+    if (gentle) return;
+    const uint8_t roll = random(100);
+    int8_t itemY = constrain(raiderCorridorY + int8_t(random(3)) - 1, 0, 7);
+    if (roll < 16) raiderCells[raiderIndex(x, itemY)] = 2;
+    else if (roll < 20) raiderCells[raiderIndex(x, itemY)] = 3;
+    else if (roll < 23) raiderCells[raiderIndex(x, itemY)] = 4;
+    else if (roll < 26) raiderCells[raiderIndex(x, itemY)] = 5;
+  }
+
+  void spawnRaiderBullet(int8_t x, int8_t y) {
+    if (y < 0 || y >= MATRIX_HEIGHT) return;
+    for (uint8_t i = 0; i < RAIDER_MAX_BULLETS; i++) if (raiderBulletX[i] < 0) { raiderBulletX[i] = x; raiderBulletY[i] = y; return; }
+  }
+
+  void fireRaider() {
+    spawnRaiderBullet(RAIDER_PLAYER_X + 1, raiderPlayerY);
+    if (raiderSpread) { spawnRaiderBullet(RAIDER_PLAYER_X + 1, raiderPlayerY - 1); spawnRaiderBullet(RAIDER_PLAYER_X + 1, raiderPlayerY + 1); }
+  }
+
+  void moveRaiderBullets() {
+    for (uint8_t i = 0; i < RAIDER_MAX_BULLETS; i++) {
+      if (raiderBulletX[i] < 0) continue;
+      raiderBulletX[i]++;
+      if (raiderBulletX[i] >= MATRIX_WIDTH) { raiderBulletX[i] = -1; continue; }
+      uint8_t& cell = raiderCells[raiderIndex(raiderBulletX[i], raiderBulletY[i])];
+      if (cell == 2) { cell = 0; raiderScore += 10; raiderBulletX[i] = -1; }
+      else if (cell == 1) raiderBulletX[i] = -1;
+    }
+  }
+
+  void collectRaiderCell(uint8_t& cell) {
+    if (cell == 3) { raiderRapidLevel = raiderRapidLevel < 2 ? raiderRapidLevel + 1 : 2; raiderScore += 15; }
+    else if (cell == 4) { raiderSpread = true; raiderScore += 15; }
+    else if (cell == 5) { raiderShield = true; raiderScore += 15; }
+    cell = 0;
+  }
+
+  int8_t humanRaiderSlot(const PlayerManager& players) const {
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) { const PlayerSlot& p = players.players[i]; if (p.occupied && p.connected && !p.waiting && !p.isCpu) return i; }
+    return -1;
+  }
+
+  void finishRaider(PlayerManager& players, AudioOut& audio, int8_t slot) {
+    if (stage != ArcadeStage::RACING) return;
+    winner = slot;
+    raiderNewRecord = raiderScore > raiderBestScore;
+    if (raiderNewRecord) raiderBestScore = raiderScore;
+    if (slot >= 0) { players.players[slot].totalPoints += raiderScore; players.players[slot].lastRaceMs = millis() - raceStartedAtMs; }
+    stage = ArcadeStage::RESULT; audio.winner();
+  }
+
+  void updateRaider(PlayerManager& players, AudioOut& audio, uint32_t now) {
+    const int8_t slot = humanRaiderSlot(players);
+    if (slot < 0) { finishRaider(players, audio, -1); return; }
+    if (now - raiderLastFireMs >= raiderFireMs()) {
+      raiderLastFireMs = now;
+      fireRaider();
+    }
+    if (now - raiderLastBulletTickMs >= RAIDER_BULLET_TICK_MS) {
+      raiderLastBulletTickMs = now;
+      moveRaiderBullets();
+    }
+    if (now - raiderLastWorldTickMs < raiderWorldTickMs(now)) return;
+    raiderLastWorldTickMs = now;
+    for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) for (uint8_t x = 0; x < MATRIX_WIDTH - 1; x++) raiderCells[raiderIndex(x, y)] = raiderCells[raiderIndex(x + 1, y)];
+    generateRaiderColumn(MATRIX_WIDTH - 1);
+    raiderDistance++; raiderScore++;
+    uint8_t& cell = raiderCells[raiderIndex(RAIDER_PLAYER_X, raiderPlayerY)];
+    if (cell >= 3) collectRaiderCell(cell);
+    else if (cell != 0) {
+      if (raiderShield) { raiderShield = false; cell = 0; }
+      else finishRaider(players, audio, slot);
+    }
+  }
+
   void scheduleCpuAction(uint32_t now, uint32_t minMs, uint32_t maxMs) {
     cpuNextActionMs = now + random(minMs, maxMs + 1);
   }

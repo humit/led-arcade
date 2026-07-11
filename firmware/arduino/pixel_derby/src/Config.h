@@ -60,3 +60,13 @@ static const uint32_t CPU_DERBY_TAP_MIN_MS = 220;
 static const uint32_t CPU_DERBY_TAP_MAX_MS = 390;
 static const uint32_t CPU_BOSS_TAP_MIN_MS = 180;
 static const uint32_t CPU_BOSS_TAP_MAX_MS = 320;
+
+// Pixel Raider
+static const uint8_t RAIDER_PLAYER_X = 3;
+static const uint32_t RAIDER_WORLD_TICK_START_MS = 340;
+static const uint32_t RAIDER_WORLD_TICK_FAST_MS = 190;
+static const uint32_t RAIDER_FIRE_START_MS = 650;
+static const uint32_t RAIDER_FIRE_RAPID_1_MS = 420;
+static const uint32_t RAIDER_FIRE_RAPID_2_MS = 270;
+static const uint32_t RAIDER_BULLET_TICK_MS = 85;
+static const uint8_t RAIDER_MAX_BULLETS = 12;

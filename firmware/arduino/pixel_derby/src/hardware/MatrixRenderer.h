@@ -17,7 +17,11 @@ public:
       case ArcadeStage::LOBBY: drawLobby(players,game); break;
       case ArcadeStage::ANNOUNCE: drawAnnouncement(game); break;
       case ArcadeStage::COUNTDOWN: drawCountdown(game.countdownValue); break;
-      case ArcadeStage::RACING: game.selectedGame==GameId::TRON_ARENA?drawTron(players,game):drawRace(players); break;
+      case ArcadeStage::RACING:
+        if(game.selectedGame==GameId::TRON_ARENA) drawTron(players,game);
+        else if(game.selectedGame==GameId::PIXEL_RAIDER) drawRaider(game);
+        else drawRace(players);
+        break;
       case ArcadeStage::RESULT: drawResult(players,game); break;
       case ArcadeStage::BOSS: drawBoss(players,game); break;
       case ArcadeStage::BOSS_RESULT: drawBossResult(players,game); break;
@@ -56,7 +60,20 @@ private:
   void drawCountdown(uint8_t v){if(v==0){for(uint8_t x=0;x<MATRIX_WIDTH;x++)for(uint8_t y=0;y<MATRIX_HEIGHT;y++)set(x,y,CRGB::Green);}else{char t[2]={char('0'+v),0};drawText(t,CRGB::White);}}
   void drawRace(const PlayerManager&p){for(uint8_t y=0;y<MATRIX_HEIGHT;y++){set(FINISH_X,y,CRGB(45,45,45));set(TURBO_X_1,y,CRGB(55,34,0));set(TURBO_X_2,y,CRGB(55,34,0));}for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(!x.occupied||!x.connected||x.waiting)continue;set(x.position,displayRow(p,i),x.turboTaps?CRGB::Gold:playerColor(i));}}
   void drawTron(const PlayerManager&p,const PixelDerbyGame&g){for(uint16_t idx=0;idx<LED_COUNT;idx++){uint8_t owner=g.tronTrail[idx];if(!owner)continue;uint8_t y=idx/MATRIX_WIDTH,x=idx%MATRIX_WIDTH;CRGB c=playerColor(owner-1);c.nscale8_video(90);set(x,y,c);}for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(x.tronAlive)set(x.tronX,x.tronY,playerColor(i));}}
-  void drawResult(const PlayerManager&p,const PixelDerbyGame&g){if(g.winner<0){drawText(DISPLAY_LANGUAGE_TR?"BERABERE":"DRAW",CRGB::White);return;}const char* word=DISPLAY_LANGUAGE_TR?"KAZANAN":"WINNER";if((millis()/900)%2==0)drawText(word,CRGB::White);else drawText(colorName(g.winner),playerColor(g.winner));}
+  void drawRaider(const PixelDerbyGame&g){
+    for(uint8_t y=0;y<MATRIX_HEIGHT;y++)for(uint8_t x=0;x<MATRIX_WIDTH;x++){
+      uint8_t cell=g.raiderCells[y*MATRIX_WIDTH+x];
+      if(cell==1)set(x,y,CRGB(20,40,70));
+      else if(cell==2)set(x,y,CRGB::Red);
+      else if(cell==3)set(x,y,CRGB::Yellow);
+      else if(cell==4)set(x,y,CRGB::Purple);
+      else if(cell==5)set(x,y,CRGB::White);
+    }
+    for(uint8_t i=0;i<RAIDER_MAX_BULLETS;i++)if(g.raiderBulletX[i]>=0)set(g.raiderBulletX[i],g.raiderBulletY[i],CRGB::Orange);
+    CRGB ship=g.raiderShield?CRGB::White:CRGB::Cyan;
+    set(RAIDER_PLAYER_X,g.raiderPlayerY,ship); set(RAIDER_PLAYER_X-1,g.raiderPlayerY,ship);
+  }
+  void drawResult(const PlayerManager&p,const PixelDerbyGame&g){if(g.selectedGame==GameId::PIXEL_RAIDER){drawText(g.raiderNewRecord?(DISPLAY_LANGUAGE_TR?"REKOR":"RECORD"):"GAME",g.raiderNewRecord?CRGB::Gold:CRGB::Red);return;}if(g.winner<0){drawText(DISPLAY_LANGUAGE_TR?"BERABERE":"DRAW",CRGB::White);return;}const char* word=DISPLAY_LANGUAGE_TR?"KAZANAN":"WINNER";if((millis()/900)%2==0)drawText(word,CRGB::White);else drawText(colorName(g.winner),playerColor(g.winner));}
   void drawBoss(const PlayerManager&p,const PixelDerbyGame&g){const uint8_t bs=25;if(g.bossSlot>=0){CRGB c=playerColor(g.bossSlot);c.nscale8_video((millis()/110)%2?230:110);for(uint8_t x=bs;x<MATRIX_WIDTH;x++)for(uint8_t y=1;y<7;y++)if(x==bs||x==31||y==1||y==6||((x+y+millis()/140)%3==0))set(x,y,c);set(27,0,CRGB::Gold);set(29,0,CRGB::Gold);set(31,0,CRGB::Gold);}uint8_t hp=g.bossMaxHp?uint8_t((uint32_t(g.bossHp)*23+g.bossMaxHp-1)/g.bossMaxHp):0;for(uint8_t x=0;x<23;x++)set(x,0,x<hp?CRGB::Red:CRGB(18,0,0));for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(!x.occupied||!x.connected||x.waiting||i==g.bossSlot)continue;uint8_t row=displayRow(p,i);CRGB c=g.stunRemainingMs(x)?CRGB::White:playerColor(i);set(0,row,c);set(2+((millis()/75+x.bossDamage*3)%21),row,c);}}
   void drawBossResult(const PlayerManager&p,const PixelDerbyGame&g){if(g.bossDefeated)drawText(DISPLAY_LANGUAGE_TR?"TAKIM":"TEAM",CRGB::Green);else if(g.bossSlot>=0)drawText(colorName(g.bossSlot),playerColor(g.bossSlot));}
 };
