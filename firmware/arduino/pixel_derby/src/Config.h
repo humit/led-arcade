@@ -2,18 +2,18 @@
 #include <Arduino.h>
 
 // Network
-static const char* AP_SSID = "! OYUNA KATIL !";
+static const char* AP_SSID = "! JOIN GAME !";
 static const byte DNS_PORT = 53;
 static const uint16_t WS_PORT = 81;
 static const IPAddress AP_IP(10, 10, 10, 10);
 static const IPAddress AP_GATEWAY(10, 10, 10, 10);
 static const IPAddress AP_SUBNET(255, 255, 255, 0);
 
-// Venue display language: true = Turkish, false = English.
-static const bool DISPLAY_LANGUAGE_TR = true;
+// Physical LED announcements use universal English arcade terminology.
 
 // 8x32 WS2812B matrix
-#define LED_PIN 23
+#define MATRIX_DATA_PIN 23  // Validated 8x32 matrix data output.
+#define STRIP_1D_DATA_PIN 19  // Reserved for the 1D strip; simultaneous use is not yet validated.
 #define MATRIX_WIDTH 32
 #define MATRIX_HEIGHT 8
 #define LED_COUNT (MATRIX_WIDTH * MATRIX_HEIGHT)
@@ -22,7 +22,7 @@ static const bool DISPLAY_LANGUAGE_TR = true;
 #define LED_BRIGHTNESS 36
 
 // Audio
-#define AUDIO_PIN 22
+#define AUDIO_PIN 22  // PAM8403 L-IN
 #define AUDIO_RES_BITS 8
 #define AUDIO_DUTY 10
 

@@ -24,10 +24,10 @@ Scoring in this pass is deliberately simple: every connected racer receives 20 p
 
 ## v3: Session controls, Turbo, and co-op boss
 
-- `BEKLEMEYE GEÇ`: player remains connected and keeps score/slot, but is excluded from active player count, ready checks, race lanes, and boss scaling.
-- `OYUNDAN AYRIL`: immediately releases the slot. The same browser can join again through `OYUNA KATIL`.
+- `BREAK`: player remains connected and keeps score/slot, but is excluded from active player count, ready checks, race lanes, and boss scaling.
+- `LEAVE GAME`: immediately releases the slot. The same browser can join again through `JOIN GAME`.
 - Turbo gates are shown at columns 10 and 21. Crossing a gate grants three 2x movement taps and 10 points.
-- After every two races, `DEVAM ET` starts a 15-second cooperative boss round.
+- After every two races, `CONTINUE` starts a 15-second cooperative boss round.
 - Boss HP scales with active players. Every tap deals damage; Turbo taps deal 2 damage.
 - Defeating the boss awards each active player 50 team points plus their personal damage contribution.
 

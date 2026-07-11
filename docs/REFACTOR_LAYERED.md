@@ -31,8 +31,8 @@ Preserved:
 - HP and combo
 
 Changed:
-- AP is open: `LED-Arcade`
-- QR is `WIFI:T:nopass;S:LED-Arcade;;`
+- AP is open: `! JOIN GAME !`
+- QR is `WIFI:T:nopass;S:! JOIN GAME !;;`
 - middle white marker LEDs removed
 - global pause and mute controls added to controller UI
 

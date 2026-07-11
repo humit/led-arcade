@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+  <style>
+    .box { fill:#f8fafc; stroke:#111827; stroke-width:3; rx:18; }
+    .title { font:700 28px sans-serif; fill:#111827; }
+    .label { font:600 20px sans-serif; fill:#111827; }
+    .note { font:16px sans-serif; fill:#374151; }
+    .power { stroke:#dc2626; stroke-width:5; fill:none; }
+    .ground { stroke:#111827; stroke-width:5; fill:none; }
+    .data { stroke:#2563eb; stroke-width:5; fill:none; }
+    .audio { stroke:#16a34a; stroke-width:5; fill:none; }
+  </style>
+  <text x="40" y="45" class="title">LED Arcade prototype wiring</text>
+
+  <rect x="60" y="100" width="240" height="150" class="box"/>
+  <text x="110" y="150" class="title">5 V PSU</text>
+  <text x="100" y="195" class="label">5V+</text>
+  <text x="220" y="195" class="label">5V- / GND</text>
+
+  <rect x="470" y="80" width="260" height="250" class="box"/>
+  <text x="560" y="125" class="title">ESP32</text>
+  <text x="500" y="175" class="label">GPIO23 — matrix</text>
+  <text x="500" y="215" class="label">GPIO19 — 1D strip</text>
+  <text x="500" y="255" class="label">GPIO22 — audio</text>
+  <text x="500" y="295" class="label">5V / GND</text>
+
+  <rect x="870" y="70" width="270" height="170" class="box"/>
+  <text x="925" y="115" class="title">8x32 matrix</text>
+  <text x="905" y="165" class="label">DIN / 5V / GND</text>
+  <text x="900" y="205" class="note">GPIO23, validated</text>
+
+  <rect x="870" y="300" width="270" height="170" class="box"/>
+  <text x="940" y="345" class="title">1D strip</text>
+  <text x="905" y="395" class="label">DIN / 5V / GND</text>
+  <text x="900" y="435" class="note">GPIO19, reserved</text>
+
+  <rect x="470" y="500" width="260" height="150" class="box"/>
+  <text x="535" y="545" class="title">PAM8403</text>
+  <text x="500" y="590" class="label">L-IN / 5V / GND</text>
+  <text x="500" y="625" class="note">Left speaker output</text>
+
+  <rect x="900" y="530" width="210" height="100" class="box"/>
+  <text x="950" y="590" class="title">Speaker</text>
+
+  <path d="M300 160 H470" class="power"/>
+  <path d="M300 210 H430 V310 H470" class="ground"/>
+  <path d="M300 160 H820 V130 H870" class="power"/>
+  <path d="M300 210 H800 V190 H870" class="ground"/>
+  <path d="M300 160 H790 V360 H870" class="power"/>
+  <path d="M300 210 H770 V420 H870" class="ground"/>
+  <path d="M300 160 H400 V550 H470" class="power"/>
+  <path d="M300 210 H380 V610 H470" class="ground"/>
+
+  <path d="M730 170 H820 V160 H870" class="data"/>
+  <text x="750" y="150" class="note">330–340 Ω</text>
+  <path d="M730 210 H800 V390 H870" class="data"/>
+  <text x="745" y="285" class="note">330–340 Ω</text>
+  <path d="M600 330 V500" class="audio"/>
+  <path d="M730 575 H900" class="audio"/>
+
+  <text x="70" y="710" class="note">Each DIN line also has a 10 kΩ pulldown to common ground. Simultaneous matrix + strip operation is not yet validated.</text>
+</svg>

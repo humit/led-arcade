@@ -1,47 +1,39 @@
-# Pinout Reference — 8x32 Matrix Arcade
+# ESP32 pinout reference
 
-Bu dosya, mevcut 8x32 LED arcade demo setup'ı için firmware ↔ donanım pin eşlemesini içerir.
+This is the current as-built and reserved pin map for the LED Arcade prototype.
 
-## ESP32 pin map
+## GPIO map
 
-| Function          | ESP32 Pin | Destination           | Notes |
-|------------------|-----------|-----------------------|-------|
-| LED Data         | GPIO23    | WS2812 Matrix DIN     | 330–340 ohm series resistor üzerinden |
-| Audio Output     | GPIO22    | PAM8403 L-IN          | Mono kullanım için sol kanal |
-| 5V Power         | 5V / JST+ | PSU 5V+               | Güç girişi |
-| Ground           | GND / JST-| PSU 5V-               | Ortak ground |
+| Function | ESP32 pin | Destination | Status |
+|---|---:|---|---|
+| Matrix data | `GPIO23` | 8x32 WS2812 matrix `DIN` | Validated |
+| 1D strip data | `GPIO19` | 1D WS2812 strip `DIN` | Reserved; simultaneous operation not yet validated |
+| Audio output | `GPIO22` | PAM8403 `L-IN` | Validated |
+| 5 V input | `5V` / JST `+` | PSU `5V+` | Regulated 5 V only |
+| Ground | `GND` / JST `-` | PSU `5V-` | Common ground for all modules |
 
----
+## Data-line components
 
-## Passive components
+Each display data line requires its own components.
 
-| Component | Connection | Value | Purpose |
-|----------|------------|-------|---------|
-| Series resistor | GPIO23 → LED DIN | 330–340 ohm | WS2812 data hattını koruma/stabilite |
-| Pulldown resistor | LED DIN → GND | 10k | Açılışta rastgele tam parlaklık problemini azaltma |
+| Data path | Series resistor | Pulldown |
+|---|---:|---:|
+| `GPIO23` -> matrix `DIN` | `330-340 ohm` | `10k ohm` from `DIN` to `GND` |
+| `GPIO19` -> 1D strip `DIN` | `330-340 ohm` | `10k ohm` from `DIN` to `GND` |
 
----
+## Firmware symbols
 
-## LED matrix connector map
+| Display | Firmware symbol | Value |
+|---|---|---:|
+| 8x32 matrix | `MATRIX_DATA_PIN` | `23` |
+| 1D strip | `STRIP_1D_DATA_PIN` | `19` |
+| Audio | `AUDIO_PIN` | `22` |
 
-| Matrix side | Pins | Purpose |
-|------------|------|---------|
-| Left | DIN / GND / 5V | Data input + power |
-| Middle | GND / 5V | Power injection |
-| Right | DOUT / GND / 5V | Data output |
+## Important limitation
 
-> Kullanım: veri soldaki `DIN` hattına girer.
+The dedicated pins are prepared for a future dual-display build, but the following are not yet validated:
 
----
-
-## Audio map
-
-| Amplifier pin | Source |
-|--------------|--------|
-| 5V | PSU 5V+ |
-| GND | Common GND |
-| L-IN | ESP32 GPIO22 |
-| Speaker out | Speaker |
-
-> R-IN kullanılmıyor.
-
+- simultaneous FastLED output on both pins,
+- timing interaction between both LED buses,
+- combined current draw,
+- independent current limiting and brightness profiles.

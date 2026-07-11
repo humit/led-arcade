@@ -7,15 +7,15 @@ Suggested tag: `8x32-pixel-derby-v1-playable`.
 
 ## Shared UX decisions
 
-- AP SSID: `! OYUNA KATIL !`
+- AP SSID: `! JOIN GAME !`
 - Controller IP: `10.10.10.10`
-- Friendly captive-DNS names: `http://play` and `http://oyna`
-- `Mola` replaces the old waiting terminology.
+- Advertised captive-DNS name: `http://play` (`http://oyna` may remain as a compatibility alias)
+- `BREAK` is the canonical English game term. Turkish controllers localize it as `MOLA`.
 - Each player's controller uses shades of the assigned player color.
 - During active play the phone is a minimal full-screen controller, without score cards or session buttons.
 - Instructions live in the pre-game lobby.
-- TR/EN controller language defaults to browser language and can be overridden.
-- Venue LED language is selected with `DISPLAY_LANGUAGE_TR` in `Config.h`.
+- Controller language defaults to Turkish for `tr-*` browser locales and English for every other locale; manual override may remain available.
+- Physical LED announcements use English-only universal arcade terminology.
 - Shared matrix cues: countdown, BOSS/color intro, WINNER/color result.
 
 ## Games
@@ -53,6 +53,6 @@ Playable and retained as the first game. Includes Turbo gates, scoring, records,
 
 - Platform/game selection is a single-viewport arcade menu, not a scrolling web page.
 - Game cards are compact 8-bit tiles arranged in two columns.
-- Scrolling or swiping over a preview never starts a game. Only the explicit PLAY/OYNA button selects it.
+- Scrolling or swiping over a preview never starts a game. The entire game tile is the selection target; text remains localized on the phone.
 - Debug/status elements are hidden on menu screens; active gameplay and lobby retain only necessary controls.
 - As the catalog grows, pagination/category pages should replace a long scrolling list.

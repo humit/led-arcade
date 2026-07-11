@@ -5,7 +5,7 @@
 The AP is open for onboarding speed:
 
 ```text
-SSID: LED-Arcade
+SSID: ! JOIN GAME !
 Auth: none
 IP: 10.10.10.10
 ```

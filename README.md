@@ -7,12 +7,25 @@ Current MVP game: **Color Rally**.
 ## Current hardware baseline
 
 - Board: WEMOS LOLIN32 Lite / ESP32
-- LED DIN: GPIO23
-- Audio output: GPIO22 → PAM8403 L-IN
-- LED count: 200
-- Network: open AP captive portal
-- AP SSID: `LED-Arcade`
-- AP IP: `10.10.10.10`
+- 8x32 matrix data: `GPIO23`
+- 1D strip data: `GPIO19` (reserved; simultaneous operation is not yet validated)
+- Audio output: `GPIO22` -> PAM8403 `L-IN`
+- Power: regulated 5 V PSU with common ground
+- LED data conditioning: `330-340 ohm` series resistor and `10k ohm` pulldown
+- Access point: `! JOIN GAME !` at `10.10.10.10`
+
+The matrix and 1D strip use separate reserved data pins. The dual-display electrical load, FastLED timing, and simultaneous rendering path are not yet validated.
+
+Hardware documentation:
+
+- [`docs/hardware/HARDWARE_WIRING.md`](docs/hardware/HARDWARE_WIRING.md)
+- [`docs/hardware/WIRING_8X32_ESP32.md`](docs/hardware/WIRING_8X32_ESP32.md)
+- [`docs/hardware/PINOUT_8X32_ESP32.md`](docs/hardware/PINOUT_8X32_ESP32.md)
+- [`docs/hardware/TROUBLESHOOTING_LED_AUDIO.md`](docs/hardware/TROUBLESHOOTING_LED_AUDIO.md)
+
+Repository language policy:
+
+- [`docs/DEVELOPMENT_LANGUAGE.md`](docs/DEVELOPMENT_LANGUAGE.md)
 
 ## Build
 
@@ -32,12 +45,12 @@ cd /Users/uezerce/src/led-arcade-platform
 User can join by either:
 
 1. Scanning the WiFi QR code, or
-2. Opening WiFi settings and tapping `LED-Arcade`.
+2. Opening Wi-Fi settings and selecting `! JOIN GAME !`.
 
 QR payload:
 
 ```text
-WIFI:T:nopass;S:LED-Arcade;;
+WIFI:T:nopass;S:! JOIN GAME !;;
 ```
 
 ## Firmware layout

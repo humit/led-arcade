@@ -3,25 +3,25 @@
 
 // -------------------- Network --------------------
 
-static const char* AP_SSID = "LED-Arcade";
+static const char* AP_SSID = "! JOIN GAME !";
 static const bool AP_OPEN = true;
 static const char* AP_PASSWORD = "";
 
 static const byte DNS_PORT = 53;
 
-static const IPAddress AP_IP(10, 10, 10, 1);
-static const IPAddress AP_GATEWAY(10, 10, 10, 1);
+static const IPAddress AP_IP(10, 10, 10, 10);
+static const IPAddress AP_GATEWAY(10, 10, 10, 10);
 static const IPAddress AP_SUBNET(255, 255, 255, 0);
 
 // -------------------- Hardware --------------------
 
-#define LED_PIN       23
+#define STRIP_1D_DATA_PIN 19  // Reserved 1D strip data output; simultaneous matrix use is not yet validated.
 #define LED_COUNT     200
 #define LED_TYPE      WS2812B
 #define COLOR_ORDER   GRB
 #define LED_BRIGHTNESS 38
 
-#define AUDIO_PIN      22
+#define AUDIO_PIN      22  // PAM8403 L-IN
 #define AUDIO_RES_BITS 8
 #define AUDIO_DUTY     10   // lower = quieter. Try 6-18.
 

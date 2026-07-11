@@ -1,103 +1,48 @@
-# 8x32 LED Arcade Wiring (ESP32 + 8x32 WS2812 + PAM8403 + 5V PSU)
+# 8x32 matrix wiring
 
-Bu doküman, 8x32 matrix arcade demosunun güncel fiziksel bağlantı şemasını içerir.
+This document describes the validated 8x32 WS2812 matrix build using an ESP32, PAM8403 amplifier, speaker, and regulated 5 V PSU.
 
-## Sistem bileşenleri
+## Components
 
 - ESP32 development board
-- 8x32 WS2812 LED matrix
+- 8x32 WS2812B matrix
 - PAM8403 amplifier
 - Speaker
-- 5V PSU
-- 330–340 ohm series resistor on LED data line
-- 10k pulldown resistor from LED DIN to GND
+- Regulated 5 V PSU
+- `330-340 ohm` series resistor on matrix data
+- `10k ohm` pulldown resistor from matrix `DIN` to ground
 
----
+## Connections
 
-## Ana bağlantı özeti
+| Source | Destination |
+|---|---|
+| ESP32 `GPIO23` | `330-340 ohm` resistor -> matrix `DIN` |
+| Matrix `DIN` | `10k ohm` resistor -> common `GND` |
+| ESP32 `GPIO22` | PAM8403 `L-IN` |
+| PSU `5V+` | ESP32 `5V`, matrix `5V`, PAM8403 `5V` |
+| PSU `5V-` | ESP32 `GND`, matrix `GND`, PAM8403 `GND` |
+| PAM8403 left speaker output | Speaker |
 
-### Güç dağıtımı
+## Matrix connector orientation
 
-- PSU `5V+` → LED `5V`
-- PSU `5V+` → Amplifier `5V`
-- PSU `5V+` → ESP32 `5V / JST +`
+| Matrix location | Pins | Purpose |
+|---|---|---|
+| Left | `DIN / GND / 5V` | Data input and power |
+| Center | `GND / 5V` | Power injection |
+| Right | `DOUT / GND / 5V` | Data output and power |
 
-- PSU `5V-` → LED `GND`
-- PSU `5V-` → Amplifier `GND`
-- PSU `5V-` → ESP32 `GND / JST -`
+Data must enter through `DIN`. Connecting the ESP32 data line to `DOUT` will not drive the matrix.
 
-> Tüm sistem ortak ground kullanır.
+## Firmware configuration
 
----
+```cpp
+#define MATRIX_DATA_PIN 23
+#define STRIP_1D_DATA_PIN 19
+#define AUDIO_PIN 22
+#define MATRIX_WIDTH 32
+#define MATRIX_HEIGHT 8
+```
 
-## ESP32 bağlantıları
+Source: `firmware/arduino/pixel_derby/src/Config.h`
 
-### LED data
-
-- `GPIO23` → `330–340 ohm resistor` → LED matrix `DIN`
-- LED `DIN` → `10k resistor` → `GND`
-
-### Audio
-
-- `GPIO22` → PAM8403 `L-IN`
-- ESP32 `GND` → PAM8403 `GND`
-
-> Şu anda yalnızca sol audio input kullanılmaktadır.
-
----
-
-## LED matrix bağlantısı
-
-8x32 panel için veri girişi:
-
-- Sol taraftaki giriş konnektörü: `DIN / GND / 5V`
-
-Ek güç beslemesi:
-
-- Orta güç noktası: `5V / GND`
-
-Çıkış:
-
-- Sağ taraftaki konnektör: `DOUT / GND / 5V`
-
-> Veri mutlaka `DIN` tarafına verilmelidir. `DOUT` tarafına bağlanırsa panel çalışmaz.
-
----
-
-## Hoparlör bağlantısı
-
-- PAM8403 speaker output → speaker terminals
-
-> Kullanılan hoparlör, PAM8403’ün ilgili çıkışına bağlanır.
-> Amp çıkış tarafında board üzerindeki işaretlere göre bağlantı yapılmalıdır.
-
----
-
-## Mermaid şema
-
-```mermaid
-flowchart LR
-    PSU[5V PSU]
-
-    ESP[ESP32]
-    AMP[PAM8403 Amp]
-    SPK[Speaker]
-    LED[8x32 WS2812 Matrix]
-
-    PSU -->|5V+| ESP
-    PSU -->|GND| ESP
-
-    PSU -->|5V+| AMP
-    PSU -->|GND| AMP
-
-    PSU -->|5V+| LED
-    PSU -->|GND| LED
-
-    ESP -->|GPIO22| AMP
-    AMP --> SPK
-
-    ESP -->|GPIO23| R1[330-340 ohm]
-    R1 --> DIN[LED DIN]
-    DIN --> R2[10k pulldown]
-    R2 --> GND1[GND]
-
+The matrix renderer uses `MATRIX_DATA_PIN`. `STRIP_1D_DATA_PIN` is reserved for a future simultaneous 1D display.

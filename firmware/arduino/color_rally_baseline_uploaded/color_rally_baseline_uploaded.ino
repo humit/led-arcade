@@ -32,15 +32,15 @@ WebServer server(80);
 
 #define AUDIO_PIN     22
 #define AUDIO_RES_BITS 8
-#define AUDIO_DUTY     12   // 0-255 arası. Küçük = daha kısık ses.
+#define AUDIO_DUTY     12   // Range: 0-255. Lower values produce quieter output.
 
 CRGB leds[LED_COUNT];
 
 // -------------------- Game tuning --------------------
 
-const int BALL_HEAD_SIZE = 1;              // baş kısmı: 1 = tek LED gibi davranır
-const int BALL_TAIL_NORMAL = 8;            // normal top kuyruğu
-const int BALL_TAIL_CHARGED = 13;          // charged top kuyruğu
+const int BALL_HEAD_SIZE = 1;              // Head size: 1 behaves as a single LED.
+const int BALL_TAIL_NORMAL = 8;            // Normal ball tail length.
+const int BALL_TAIL_CHARGED = 13;          // Charged ball tail length.
 
 const int HIT_ZONE_SIZE = 42;
 
@@ -126,12 +126,12 @@ uint32_t cpuHitAtMs = 0;
 uint8_t cpuPlannedColor = C_RED;
 
 // -------------------- Audio --------------------
-// Daha kısık ses için LEDC + düşük duty kullanıyoruz.
+// Use LEDC with a low duty cycle for quieter output.
 
 void playToneSoft(uint16_t freq, uint16_t durationMs) {
   if (freq == 0 || durationMs == 0) return;
 
-  // Arduino-ESP32 v3.x: LEDC API pin tabanlıdır.
+  // Arduino-ESP32 v3.x uses the pin-based LEDC API.
   ledcWriteTone(AUDIO_PIN, freq);
   ledcWrite(AUDIO_PIN, AUDIO_DUTY);
   delay(durationMs);
@@ -1009,7 +1009,7 @@ void drawBall() {
 
   CRGB base = gameColor(ballColorType);
 
-  // Baş: parlak ve etkili temas noktası
+  // Head: bright and visually distinct contact point.
   for (int i = 0; i <= BALL_HEAD_SIZE; i++) {
     int idx = ballDir > 0 ? (head - i) : (head + i);
 
@@ -1023,13 +1023,13 @@ void drawBall() {
     addPixelSafe(idx, c);
   }
 
-  // Kuyruk: hareket yönünün tersine uzayan, koyudan açığa gradient
+  // Tail: extends opposite the movement direction with a fading gradient.
   for (int t = 1; t <= tailLen; t++) {
     int idx = ballDir > 0
       ? (head - BALL_HEAD_SIZE - t)
       : (head + BALL_HEAD_SIZE + t);
 
-    // Başa yakın koyu/parlak, arkaya doğru daha açık/silik
+    // Stronger near the head and dimmer toward the end of the tail.
     uint8_t scale;
     if (ballCharged) {
       scale = map(t, 1, tailLen, 180, 10);
@@ -1040,7 +1040,7 @@ void drawBall() {
     CRGB c = base;
     c.nscale8_video(scale);
 
-    // İstersen kuyruğa hafif beyaz karışım vererek badminton hissi artır
+    // Optionally blend a small amount of white into the tail for a shuttlecock-like effect.
     // c += CRGB(scale / 10, scale / 10, scale / 10);
 
     addPixelSafe(idx, c);
@@ -1083,12 +1083,12 @@ int currentBallTailLength() {
 }
 
 float ballHeadPos() {
-  // Hareket yönünde öndeki gerçek temas noktası
+  // Actual leading contact point in the direction of travel.
   if (ballDir > 0) {
-    // sağa gidiyor -> baş sağda
+    // Moving right: the head is on the right.
     return ballPos + BALL_HEAD_SIZE;
   } else {
-    // sola gidiyor -> baş solda
+    // Moving left: the head is on the left.
     return ballPos - BALL_HEAD_SIZE;
   }
 }
