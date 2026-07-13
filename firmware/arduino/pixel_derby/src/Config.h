@@ -22,7 +22,7 @@ static const bool DISPLAY_LANGUAGE_TR = true;
 #define LED_BRIGHTNESS 36
 
 // Audio
-#define AUDIO_PIN 22
+#define AUDIO_PIN 25
 #define AUDIO_RES_BITS 8
 #define AUDIO_DUTY 10
 
