@@ -4,6 +4,7 @@
 #include "../../Types.h"
 #include "../../session/PlayerManager.h"
 #include "../../hardware/AudioOut.h"
+#include "../pixel_pong/PixelPongGame.h"
 
 class PixelDerbyGame {
 public:
@@ -63,6 +64,9 @@ public:
   uint32_t clashLastTickMs = 0;
   uint32_t clashLastCpuDecisionMs = 0;
 
+  // Pixel Pong state
+  PixelPongGame pong;
+
   // 1D arena state
   int8_t stripLeftSlot = -1;
   int8_t stripRightSlot = -1;
@@ -90,6 +94,7 @@ public:
     winner = -1;
     bossSlot = -1;
     pendingBoss = false;
+    pong.clear();
     stage = ArcadeStage::PLATFORM_SELECT;
   }
 
@@ -100,6 +105,7 @@ public:
     winner = -1;
     bossSlot = -1;
     pendingBoss = false;
+    pong.clear();
     stage = ArcadeStage::GAME_SELECT;
   }
 
@@ -112,6 +118,7 @@ public:
     racesSinceBoss = 0;
     bossSlot = -1;
     previousBossSlot = -1;
+    pong.clear();
     stage = ArcadeStage::LOBBY;
   }
 
@@ -142,6 +149,7 @@ public:
     }
     if (selectedGame == GameId::TRON_ARENA && (active < TRON_MIN_PLAYERS || active > TRON_MAX_PLAYERS)) return false;
     if (selectedGame == GameId::COLOR_CLASH && (active < CLASH_MIN_PLAYERS || active > CLASH_MAX_PLAYERS)) return false;
+    if (selectedGame == GameId::PIXEL_PONG && active != 2) return false;
     if ((selectedGame == GameId::REFLEX_RALLY || selectedGame == GameId::POWER_PUSH) && active != 2) return false;
 
     players.resetRound(false);
@@ -153,6 +161,7 @@ public:
     if (selectedGame == GameId::TRON_ARENA) prepareTron(players);
     if (selectedGame == GameId::PIXEL_RAIDER) prepareRaider();
     if (selectedGame == GameId::COLOR_CLASH) prepareClash(players);
+    if (selectedGame == GameId::PIXEL_PONG && !pong.prepare(players)) return false;
     if (selectedGame == GameId::REFLEX_RALLY || selectedGame == GameId::POWER_PUSH) prepareStripGame(players);
     stage = ArcadeStage::COUNTDOWN;
     audio.countdown(countdownValue);
@@ -240,9 +249,21 @@ public:
     return true;
   }
 
+  bool pongMove(uint8_t slot, int8_t delta, PlayerManager& players) {
+    if (selectedGame != GameId::PIXEL_PONG || stage != ArcadeStage::RACING) return false;
+    return pong.move(slot, delta, players);
+  }
+
   bool rematch(uint8_t requester, PlayerManager& players) {
     if (requester >= MAX_PLAYERS || !players.players[requester].connected || players.players[requester].waiting) return false;
     if (stage == ArcadeStage::RESULT) {
+      if (selectedGame == GameId::PIXEL_PONG) {
+        players.resetRound(true);
+        winner = -1;
+        pong.clear();
+        stage = ArcadeStage::LOBBY;
+        return true;
+      }
       if (selectedGame == GameId::PIXEL_DERBY && racesSinceBoss >= RACES_PER_BOSS) {
         beginBossIntro(players);
         return true;
@@ -308,6 +329,7 @@ public:
         clashLastTickMs = now;
         clashLastCpuDecisionMs = now;
       }
+      if (selectedGame == GameId::PIXEL_PONG) pong.start(now);
       if (selectedGame == GameId::REFLEX_RALLY) stripLastStepMs = now;
       if (selectedGame == GameId::POWER_PUSH) stripEndsAtMs = now + STRIP_PUSH_DURATION_MS;
       stripCpuDueMs = 0;
@@ -319,6 +341,10 @@ public:
     if (stage == ArcadeStage::RACING && selectedGame == GameId::TRON_ARENA) updateTron(players, audio, now);
     if (stage == ArcadeStage::RACING && selectedGame == GameId::PIXEL_RAIDER) updateRaider(players, audio, now);
     if (stage == ArcadeStage::RACING && selectedGame == GameId::COLOR_CLASH) updateClash(players, audio, now);
+    if (stage == ArcadeStage::RACING && selectedGame == GameId::PIXEL_PONG) {
+      pong.update(players, audio, now);
+      if (pong.matchFinished) finishPong(players);
+    }
     if (stage == ArcadeStage::RACING && selectedGame == GameId::REFLEX_RALLY) updateStripRally(players, audio, now);
     if (stage == ArcadeStage::RACING && selectedGame == GameId::POWER_PUSH) updatePowerPush(players, audio, now);
   }
@@ -356,6 +382,25 @@ public:
   }
 
 private:
+  void finishPong(PlayerManager& players) {
+    winner = pong.winnerSlot;
+    if (winner >= 0 && winner < MAX_PLAYERS) {
+      PlayerSlot& champion = players.players[winner];
+      champion.wins++;
+      champion.streak++;
+      champion.bestStreak = max(champion.bestStreak, champion.streak);
+      const uint8_t winnerScore = pong.leftScore > pong.rightScore ? pong.leftScore : pong.rightScore;
+      champion.totalPoints += 100 + uint32_t(winnerScore) * 10;
+      for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+        PlayerSlot& player = players.players[i];
+        if (!player.occupied || !player.connected || player.waiting || i == winner) continue;
+        player.streak = 0;
+        player.totalPoints += 20;
+      }
+    }
+    stage = ArcadeStage::RESULT;
+  }
+
   uint8_t stripPlayerOrder(const PlayerManager& players, uint8_t slot) const {
     uint8_t order = 0;
     for (uint8_t i = 0; i < MAX_PLAYERS; i++) {

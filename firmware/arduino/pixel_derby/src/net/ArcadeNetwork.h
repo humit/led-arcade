@@ -180,6 +180,7 @@ private:
     else if (message == "SELECT_GAME|tron_arena") game->selectGame(GameId::TRON_ARENA, *players);
     else if (message == "SELECT_GAME|pixel_raider") game->selectGame(GameId::PIXEL_RAIDER, *players);
     else if (message == "SELECT_GAME|color_clash") game->selectGame(GameId::COLOR_CLASH, *players);
+    else if (message == "SELECT_GAME|pixel_pong") game->selectGame(GameId::PIXEL_PONG, *players);
     else if (message == "SELECT_GAME|reflex_rally") game->selectGame(GameId::REFLEX_RALLY, *players);
     else if (message == "SELECT_GAME|power_push") game->selectGame(GameId::POWER_PUSH, *players);
     else if (message.startsWith("READY|")) game->setReady(slot, commandArg(message) == "1", *players, *audio);
@@ -189,6 +190,8 @@ private:
     else if (message == "TURN_RIGHT") game->turn(slot, false, *players);
     else if (message == "MOVE_UP") game->raiderMove(slot, -1, *players, *audio);
     else if (message == "MOVE_DOWN") game->raiderMove(slot, 1, *players, *audio);
+    else if (message == "PONG_UP") game->pongMove(slot, -1, *players);
+    else if (message == "PONG_DOWN") game->pongMove(slot, 1, *players);
     else if (message == "CLASH_UP") game->clashMove(slot, TronDirection::UP, *players);
     else if (message == "CLASH_RIGHT") game->clashMove(slot, TronDirection::RIGHT, *players);
     else if (message == "CLASH_DOWN") game->clashMove(slot, TronDirection::DOWN, *players);
@@ -204,7 +207,7 @@ private:
   void sendState(uint8_t client) {
     const int you = players->findByClient(client);
     String json;
-    json.reserve(1900);
+    json.reserve(2200);
     json = "{\"stage\":\"";
     json += stageName(game->stage);
     json += "\",\"arena\":\"" + String(arenaName(game->selectedArena)) + "\"";
@@ -233,6 +236,11 @@ private:
     json += ",\"stripRally\":" + String(game->stripRally);
     json += ",\"stripMarker\":" + String(game->stripMarker);
     json += ",\"stripRemainingMs\":" + String(game->stripRemainingMs());
+    json += ",\"pongLeftSlot\":" + String(game->pong.leftSlot);
+    json += ",\"pongRightSlot\":" + String(game->pong.rightSlot);
+    json += ",\"pongLeftScore\":" + String(game->pong.leftScore);
+    json += ",\"pongRightScore\":" + String(game->pong.rightScore);
+    json += ",\"pongPointPause\":" + String(game->pong.pointPause ? "true" : "false");
     json += ",\"clashCounts\":[";
     for (uint8_t i = 0; i < MAX_PLAYERS; i++) { if (i) json += ','; json += String(game->clashCounts[i]); }
     json += "]";
