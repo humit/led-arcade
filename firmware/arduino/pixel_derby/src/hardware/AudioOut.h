@@ -53,6 +53,8 @@ public:
 
   void playerJoined() { play(SoundId::PLAYER_JOINED); }
   void ready() { play(SoundId::READY); }
+  void pongHit() { play(SoundId::PONG_HIT); }
+  void pongScore() { play(SoundId::PONG_SCORE); }
   void countdown(uint8_t value) { play(value == 0 ? SoundId::GO : SoundId::COUNTDOWN); }
   void tap() {}
   void winner() { play(SoundId::WINNER); }

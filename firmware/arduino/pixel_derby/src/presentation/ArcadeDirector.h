@@ -13,6 +13,7 @@ public:
     DERBY,
     RAIDER,
     PAINT,
+    PONG,
     WINNER,
     ATTRACT_CHOMPER,
     ATTRACT_DERBY_DEMO,
@@ -117,6 +118,7 @@ private:
       if (game.selectedGame == GameId::PIXEL_DERBY) setCue(VisualCue::DERBY);
       else if (game.selectedGame == GameId::PIXEL_RAIDER) setCue(VisualCue::RAIDER);
       else if (game.selectedGame == GameId::COLOR_CLASH) setCue(VisualCue::PAINT);
+      else if (game.selectedGame == GameId::PIXEL_PONG) setCue(VisualCue::PONG);
     }
 
     if (game.stage != previousStage) {

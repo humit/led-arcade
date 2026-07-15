@@ -11,9 +11,10 @@
 class MatrixRenderer {
 public:
   CRGB leds[LED_COUNT];
-  void begin(){FastLED.addLeds<LED_TYPE,LED_PIN,COLOR_ORDER>(leds,LED_COUNT);FastLED.setBrightness(LED_BRIGHTNESS);FastLED.clear(true);}
+  void begin(){FastLED.addLeds<LED_TYPE,LED_PIN,COLOR_ORDER>(leds,LED_COUNT);FastLED.setBrightness(LED_BRIGHTNESS);clearPixels();FastLED.show();}
+  void clearPixels(){fill_solid(leds,LED_COUNT,CRGB::Black);}
   void render(const PlayerManager& players, PixelDerbyGame& game, const ArcadeDirector& director){
-    FastLED.clear();
+    clearPixels();
     if (drawPresentationCue(game, director)) { FastLED.show(); return; }
     switch(game.stage){
       case ArcadeStage::PLATFORM_SELECT: drawPlatformSelect(); break;
@@ -25,6 +26,7 @@ public:
         if(game.selectedGame==GameId::TRON_ARENA) drawTron(players,game);
         else if(game.selectedGame==GameId::PIXEL_RAIDER) drawRaider(game);
         else if(game.selectedGame==GameId::COLOR_CLASH) drawClash(players,game);
+        else if(game.selectedGame==GameId::PIXEL_PONG) drawPong(players,game);
         else drawRace(players);
         break;
       case ArcadeStage::RESULT: drawResult(players,game); break;
@@ -77,6 +79,7 @@ private:
       if(d.cue()==Cue::DERBY)drawRacingTeaser(age);
       else if(d.cue()==Cue::RAIDER)drawShipTeaser(age);
       else if(d.cue()==Cue::PAINT)drawPaintTeaser(age);
+      else if(d.cue()==Cue::PONG)drawPongTeaser(age);
       else return false;
       return true;
     }
@@ -107,6 +110,15 @@ private:
       if(x<split){CRGB c=((x+y)&1)?CRGB::Blue:CRGB::DeepPink;c.nscale8_video(55+((x*13+y*17)%70));set(x,y,c);}
     }
     const int cx=min<int>(MATRIX_WIDTH-1,split);for(int dy=-2;dy<=2;dy++)set(cx,3+dy,dy&1?CRGB::White:CRGB::Gold);
+  }
+  void drawPongTeaser(uint32_t age){
+    const int y=1+int((age/170)%6);
+    for(uint8_t i=0;i<PONG_PADDLE_HEIGHT;i++){set(PONG_LEFT_X,2+i,CRGB::Blue);set(PONG_RIGHT_X,3+i,CRGB::DeepPink);}
+    for(uint8_t yy=0;yy<MATRIX_HEIGHT;yy+=2){set(15,yy,CRGB(12,12,18));set(16,yy,CRGB(12,12,18));}
+    const int travel=2*(PONG_RIGHT_X-PONG_LEFT_X-2);
+    int phase=int((age/70)%travel);
+    int x=phase<(travel/2)?PONG_LEFT_X+2+phase:PONG_RIGHT_X-2-(phase-travel/2);
+    set(x,y,CRGB::White);
   }
   void drawDerbyDemo(uint32_t age){
     for(uint8_t y=1;y<7;y+=4)for(uint8_t x=0;x<MATRIX_WIDTH;x++)set(x,y,CRGB(4,4,8));
@@ -164,6 +176,27 @@ private:
     for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto& pl=p.players[i];if(!pl.occupied||!pl.connected||pl.waiting||pl.clashX<0)continue;set(pl.clashX,pl.clashY,CRGB::White);}
     const uint32_t remain=g.clashRemainingMs();
     if(remain>0&&remain<=5000){const uint8_t lights=(remain+999)/1000;for(uint8_t i=0;i<5;i++)set(27+i,0,i<lights?CRGB::White:CRGB(12,12,12));}
+  }
+  void drawPong(const PlayerManager& p,const PixelDerbyGame& g){
+    const PixelPongGame& pong=g.pong;
+    for(uint8_t y=0;y<MATRIX_HEIGHT;y++){
+      if((y&1)==0){set(15,y,CRGB(10,10,16));set(16,y,CRGB(10,10,16));}
+    }
+    if(pong.leftSlot>=0&&pong.leftSlot<MAX_PLAYERS){
+      CRGB c=playerColor(pong.leftSlot);if(p.players[pong.leftSlot].isCpu)c.nscale8_video(150);
+      for(uint8_t i=0;i<PONG_PADDLE_HEIGHT;i++)set(PONG_LEFT_X,pong.leftPaddleY+i,c);
+    }
+    if(pong.rightSlot>=0&&pong.rightSlot<MAX_PLAYERS){
+      CRGB c=playerColor(pong.rightSlot);if(p.players[pong.rightSlot].isCpu)c.nscale8_video(150);
+      for(uint8_t i=0;i<PONG_PADDLE_HEIGHT;i++)set(PONG_RIGHT_X,pong.rightPaddleY+i,c);
+    }
+    CRGB ball=pong.pointPause?CRGB::Gold:CRGB::White;
+    if(!pong.pointPause)set(pong.ballX-pong.ballDx,pong.ballY,CRGB(35,35,45));
+    set(pong.ballX,pong.ballY,ball);
+    for(uint8_t i=0;i<PONG_SCORE_TO_WIN;i++){
+      set(5+i,0,i<pong.leftScore?playerColor(pong.leftSlot):CRGB(8,8,12));
+      set(26-i,0,i<pong.rightScore?playerColor(pong.rightSlot):CRGB(8,8,12));
+    }
   }
   void drawRaider(const PixelDerbyGame&g){
     for(uint8_t y=0;y<MATRIX_HEIGHT;y++)for(uint8_t x=0;x<MATRIX_WIDTH;x++){

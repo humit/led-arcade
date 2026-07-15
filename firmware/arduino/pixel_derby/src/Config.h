@@ -85,6 +85,20 @@ static const uint32_t RAIDER_FIRE_RAPID_2_MS = 270;
 static const uint32_t RAIDER_BULLET_TICK_MS = 85;
 static const uint8_t RAIDER_MAX_BULLETS = 12;
 
+// Pixel Pong
+static const uint8_t PONG_PADDLE_HEIGHT = 3;
+static const uint8_t PONG_LEFT_X = 1;
+static const uint8_t PONG_RIGHT_X = MATRIX_WIDTH - 2;
+static const uint8_t PONG_SCORE_TO_WIN = 5;
+static const uint32_t PONG_STEP_START_MS = 145;
+static const uint32_t PONG_STEP_MIN_MS = 70;
+static const uint32_t PONG_SPEEDUP_PER_HIT_MS = 7;
+static const uint32_t PONG_POINT_PAUSE_MS = 850;
+static const uint32_t PONG_INPUT_DEBOUNCE_MS = 65;
+static const uint32_t PONG_CPU_MOVE_MIN_MS = 90;
+static const uint32_t PONG_CPU_MOVE_MAX_MS = 150;
+static const uint8_t PONG_CPU_SKIP_PERCENT = 12;
+
 // Color Clash
 static const uint8_t CLASH_MIN_PLAYERS = 2;
 static const uint8_t CLASH_MAX_PLAYERS = 4;

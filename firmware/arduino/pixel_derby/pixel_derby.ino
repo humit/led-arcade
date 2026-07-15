@@ -24,7 +24,7 @@ void setup() {
   Serial.println();
   Serial.println("===================================");
   Serial.println("LED Arcade / 8x32 Multi-game");
-  Serial.println("Pixel Derby + Pixel Raider + Color Clash");
+  Serial.println("Pixel Derby + Pixel Raider + Color Clash + Pixel Pong");
   Serial.println("===================================");
 
   audio.begin();
