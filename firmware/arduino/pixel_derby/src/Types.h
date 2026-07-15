@@ -14,7 +14,9 @@ enum class ArcadeStage : uint8_t {
   BOSS_RESULT
 };
 
-enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA, PIXEL_RAIDER, COLOR_CLASH };
+enum class ArenaType : uint8_t { NONE, MATRIX_8X32, STRIP_1D };
+
+enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA, PIXEL_RAIDER, COLOR_CLASH, REFLEX_RALLY, POWER_PUSH };
 
 enum class TronDirection : uint8_t { UP, RIGHT, DOWN, LEFT };
 
@@ -78,6 +80,16 @@ inline const char* gameName(GameId game) {
     case GameId::TRON_ARENA: return "tron_arena";
     case GameId::PIXEL_RAIDER: return "pixel_raider";
     case GameId::COLOR_CLASH: return "color_clash";
+    case GameId::REFLEX_RALLY: return "reflex_rally";
+    case GameId::POWER_PUSH: return "power_push";
+    default: return "none";
+  }
+}
+
+inline const char* arenaName(ArenaType arena) {
+  switch (arena) {
+    case ArenaType::MATRIX_8X32: return "matrix_8x32";
+    case ArenaType::STRIP_1D: return "strip_1d";
     default: return "none";
   }
 }

@@ -8,6 +8,7 @@
 class PixelDerbyGame {
 public:
   ArcadeStage stage = ArcadeStage::PLATFORM_SELECT;
+  ArenaType selectedArena = ArenaType::NONE;
   GameId selectedGame = GameId::NONE;
   int8_t winner = -1;
   uint8_t countdownValue = 3;
@@ -62,8 +63,34 @@ public:
   uint32_t clashLastTickMs = 0;
   uint32_t clashLastCpuDecisionMs = 0;
 
-  void selectPlatform() {
-    if (stage == ArcadeStage::PLATFORM_SELECT) stage = ArcadeStage::GAME_SELECT;
+  // 1D arena state
+  int8_t stripLeftSlot = -1;
+  int8_t stripRightSlot = -1;
+  int16_t stripBall = STRIP_LED_COUNT / 2;
+  int8_t stripDirection = 1;
+  uint32_t stripLastStepMs = 0;
+  uint32_t stripStepMs = STRIP_RALLY_STEP_START_MS;
+  uint16_t stripRally = 0;
+  int16_t stripMarker = STRIP_LED_COUNT / 2;
+  uint32_t stripEndsAtMs = 0;
+  uint32_t stripCpuDueMs = 0;
+
+  void selectPlatform(ArenaType arena) {
+    if (stage != ArcadeStage::PLATFORM_SELECT) return;
+    selectedArena = arena;
+    if (arena == ArenaType::MATRIX_8X32 || arena == ArenaType::STRIP_1D) stage = ArcadeStage::GAME_SELECT;
+  }
+
+  void backToPlatforms(PlayerManager& players) {
+    if (stage != ArcadeStage::GAME_SELECT) return;
+    players.removeAutomaticCpu();
+    players.resetRound(true);
+    selectedArena = ArenaType::NONE;
+    selectedGame = GameId::NONE;
+    winner = -1;
+    bossSlot = -1;
+    pendingBoss = false;
+    stage = ArcadeStage::PLATFORM_SELECT;
   }
 
   void backToGames(PlayerManager& players) {
@@ -115,6 +142,7 @@ public:
     }
     if (selectedGame == GameId::TRON_ARENA && (active < TRON_MIN_PLAYERS || active > TRON_MAX_PLAYERS)) return false;
     if (selectedGame == GameId::COLOR_CLASH && (active < CLASH_MIN_PLAYERS || active > CLASH_MAX_PLAYERS)) return false;
+    if ((selectedGame == GameId::REFLEX_RALLY || selectedGame == GameId::POWER_PUSH) && active != 2) return false;
 
     players.resetRound(false);
     winner = -1;
@@ -125,12 +153,15 @@ public:
     if (selectedGame == GameId::TRON_ARENA) prepareTron(players);
     if (selectedGame == GameId::PIXEL_RAIDER) prepareRaider();
     if (selectedGame == GameId::COLOR_CLASH) prepareClash(players);
+    if (selectedGame == GameId::REFLEX_RALLY || selectedGame == GameId::POWER_PUSH) prepareStripGame(players);
     stage = ArcadeStage::COUNTDOWN;
     audio.countdown(countdownValue);
     return true;
   }
 
   bool tap(uint8_t slot, PlayerManager& players, AudioOut& audio) {
+    if (selectedGame == GameId::REFLEX_RALLY || selectedGame == GameId::POWER_PUSH)
+      return stripTap(slot, players, audio);
     if (selectedGame != GameId::PIXEL_DERBY || slot >= MAX_PLAYERS) return false;
     PlayerSlot& p = players.players[slot];
     if (!p.occupied || !p.connected || p.waiting) return false;
@@ -277,6 +308,9 @@ public:
         clashLastTickMs = now;
         clashLastCpuDecisionMs = now;
       }
+      if (selectedGame == GameId::REFLEX_RALLY) stripLastStepMs = now;
+      if (selectedGame == GameId::POWER_PUSH) stripEndsAtMs = now + STRIP_PUSH_DURATION_MS;
+      stripCpuDueMs = 0;
       stage = ArcadeStage::RACING;
       return;
     }
@@ -285,6 +319,8 @@ public:
     if (stage == ArcadeStage::RACING && selectedGame == GameId::TRON_ARENA) updateTron(players, audio, now);
     if (stage == ArcadeStage::RACING && selectedGame == GameId::PIXEL_RAIDER) updateRaider(players, audio, now);
     if (stage == ArcadeStage::RACING && selectedGame == GameId::COLOR_CLASH) updateClash(players, audio, now);
+    if (stage == ArcadeStage::RACING && selectedGame == GameId::REFLEX_RALLY) updateStripRally(players, audio, now);
+    if (stage == ArcadeStage::RACING && selectedGame == GameId::POWER_PUSH) updatePowerPush(players, audio, now);
   }
 
   uint32_t bossRemainingMs() const {
@@ -304,6 +340,12 @@ public:
     return now >= clashEndsAtMs ? 0 : clashEndsAtMs - now;
   }
 
+  uint32_t stripRemainingMs() const {
+    if (selectedGame != GameId::POWER_PUSH || stage != ArcadeStage::RACING) return 0;
+    const uint32_t now = millis();
+    return now >= stripEndsAtMs ? 0 : stripEndsAtMs - now;
+  }
+
   uint8_t tronAliveCount(const PlayerManager& players) const {
     uint8_t count = 0;
     for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
@@ -314,6 +356,121 @@ public:
   }
 
 private:
+  uint8_t stripPlayerOrder(const PlayerManager& players, uint8_t slot) const {
+    uint8_t order = 0;
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+      const PlayerSlot& p = players.players[i];
+      if (!p.occupied || !p.connected || p.waiting) continue;
+      if (i == slot) return order;
+      order++;
+    }
+    return 255;
+  }
+
+  void prepareStripGame(PlayerManager& players) {
+    stripLeftSlot = -1; stripRightSlot = -1;
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+      const PlayerSlot& p = players.players[i];
+      if (!p.occupied || !p.connected || p.waiting) continue;
+      if (stripLeftSlot < 0) stripLeftSlot = i;
+      else if (stripRightSlot < 0) { stripRightSlot = i; break; }
+    }
+    stripBall = STRIP_LED_COUNT / 2;
+    stripDirection = random(2) ? 1 : -1;
+    stripStepMs = STRIP_RALLY_STEP_START_MS;
+    stripRally = 0;
+    stripMarker = STRIP_LED_COUNT / 2;
+    stripCpuDueMs = 0;
+  }
+
+  void finishStrip(uint8_t winningSlot, PlayerManager& players, AudioOut& audio) {
+    if (winningSlot >= MAX_PLAYERS) return;
+    winner = winningSlot;
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+      PlayerSlot& p = players.players[i];
+      if (!p.occupied || !p.connected || p.waiting) continue;
+      if (i == winningSlot) {
+        p.score++; p.wins++; p.streak++; p.bestStreak = max(p.bestStreak, p.streak); p.totalPoints += 100;
+      } else { p.streak = 0; p.totalPoints += 20; }
+    }
+    stage = ArcadeStage::RESULT;
+    audio.winner();
+  }
+
+  bool stripTap(uint8_t slot, PlayerManager& players, AudioOut& audio) {
+    if (stage != ArcadeStage::RACING || slot >= MAX_PLAYERS) return false;
+    PlayerSlot& p = players.players[slot];
+    if (!p.occupied || !p.connected || p.waiting) return false;
+    const bool left = slot == stripLeftSlot;
+    const bool right = slot == stripRightSlot;
+    if (!left && !right) return false;
+    const uint32_t now = millis();
+
+    if (selectedGame == GameId::REFLEX_RALLY) {
+      const bool validLeft = left && stripDirection < 0 && stripBall <= int16_t(STRIP_HIT_ZONE_LEDS);
+      const bool validRight = right && stripDirection > 0 && stripBall >= int16_t(STRIP_LED_COUNT - 1 - STRIP_HIT_ZONE_LEDS);
+      if (!validLeft && !validRight) return false;
+      stripDirection = -stripDirection;
+      stripRally++;
+      const uint32_t speedup = min<uint32_t>(stripRally * 4, STRIP_RALLY_STEP_START_MS - STRIP_RALLY_STEP_MIN_MS);
+      stripStepMs = STRIP_RALLY_STEP_START_MS - speedup;
+      stripCpuDueMs = 0;
+      p.totalPoints += 5;
+      audio.powerUp();
+      return true;
+    }
+
+    if (selectedGame == GameId::POWER_PUSH) {
+      if (now - p.lastTapMs < STRIP_PUSH_TAP_DEBOUNCE_MS) return false;
+      p.lastTapMs = now;
+      stripMarker += left ? 1 : -1;
+      stripMarker = constrain(stripMarker, int16_t(STRIP_HIT_ZONE_LEDS), int16_t(STRIP_LED_COUNT - 1 - STRIP_HIT_ZONE_LEDS));
+      p.totalPoints++;
+      if (stripMarker >= int16_t(STRIP_LED_COUNT - 1 - STRIP_HIT_ZONE_LEDS)) finishStrip(stripLeftSlot, players, audio);
+      else if (stripMarker <= int16_t(STRIP_HIT_ZONE_LEDS)) finishStrip(stripRightSlot, players, audio);
+      return true;
+    }
+    return false;
+  }
+
+  void updateStripCpu(PlayerManager& players, AudioOut& audio, uint32_t now) {
+    const int cpu = players.cpuSlot();
+    if (cpu < 0 || stage != ArcadeStage::RACING) return;
+    if (selectedGame == GameId::REFLEX_RALLY) {
+      const bool approaching = (cpu == stripLeftSlot && stripDirection < 0 && stripBall <= int16_t(STRIP_HIT_ZONE_LEDS)) ||
+                               (cpu == stripRightSlot && stripDirection > 0 && stripBall >= int16_t(STRIP_LED_COUNT - 1 - STRIP_HIT_ZONE_LEDS));
+      if (!approaching) { stripCpuDueMs = 0; return; }
+      if (stripCpuDueMs == 0) stripCpuDueMs = now + random(70, 190);
+      if (now >= stripCpuDueMs) {
+        if (random(100) < 88) stripTap(cpu, players, audio);
+        stripCpuDueMs = now + 10000;
+      }
+    } else if (selectedGame == GameId::POWER_PUSH) {
+      if (stripCpuDueMs == 0 || now >= stripCpuDueMs) {
+        stripTap(cpu, players, audio);
+        stripCpuDueMs = now + random(STRIP_CPU_PUSH_MIN_MS, STRIP_CPU_PUSH_MAX_MS);
+      }
+    }
+  }
+
+  void updateStripRally(PlayerManager& players, AudioOut& audio, uint32_t now) {
+    updateStripCpu(players, audio, now);
+    if (stage != ArcadeStage::RACING || now - stripLastStepMs < stripStepMs) return;
+    stripLastStepMs = now;
+    stripBall += stripDirection;
+    if (stripBall <= 0) finishStrip(stripRightSlot, players, audio);
+    else if (stripBall >= STRIP_LED_COUNT - 1) finishStrip(stripLeftSlot, players, audio);
+  }
+
+  void updatePowerPush(PlayerManager& players, AudioOut& audio, uint32_t now) {
+    updateStripCpu(players, audio, now);
+    if (stage != ArcadeStage::RACING || now < stripEndsAtMs) return;
+    const int16_t center = STRIP_LED_COUNT / 2;
+    if (stripMarker > center) finishStrip(stripLeftSlot, players, audio);
+    else if (stripMarker < center) finishStrip(stripRightSlot, players, audio);
+    else { winner = -1; stage = ArcadeStage::RESULT; audio.winner(); }
+  }
+
   uint16_t clashIndex(uint8_t x, uint8_t y) const { return uint16_t(y) * MATRIX_WIDTH + x; }
 
   uint8_t clashActiveOrder(const PlayerManager& players, uint8_t slot) const {

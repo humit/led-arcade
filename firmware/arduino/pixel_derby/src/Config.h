@@ -21,6 +21,20 @@ static const bool DISPLAY_LANGUAGE_TR = true;
 #define COLOR_ORDER GRB
 #define LED_BRIGHTNESS 36
 
+// 1D WS2812B strip arena
+#define STRIP_LED_PIN 22
+#define STRIP_LED_COUNT 150
+#define STRIP_LED_BRIGHTNESS 36
+
+// 1D games
+static const uint16_t STRIP_HIT_ZONE_LEDS = 14;
+static const uint32_t STRIP_RALLY_STEP_START_MS = 90;
+static const uint32_t STRIP_RALLY_STEP_MIN_MS = 28;
+static const uint32_t STRIP_PUSH_DURATION_MS = 20000;
+static const uint32_t STRIP_PUSH_TAP_DEBOUNCE_MS = 120;
+static const uint32_t STRIP_CPU_PUSH_MIN_MS = 185;
+static const uint32_t STRIP_CPU_PUSH_MAX_MS = 310;
+
 // Audio
 #define AUDIO_PIN 25
 #define AUDIO_RES_BITS 8

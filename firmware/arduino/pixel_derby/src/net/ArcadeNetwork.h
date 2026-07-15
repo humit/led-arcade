@@ -153,6 +153,12 @@ private:
       return;
     }
 
+    if (message == "BACK_TO_PLATFORMS") {
+      game->backToPlatforms(*players);
+      broadcastState();
+      return;
+    }
+
     if (message == "BACK_TO_GAMES") {
       game->backToGames(*players);
       broadcastState();
@@ -168,11 +174,14 @@ private:
       return;
     }
 
-    if (message == "SELECT_PLATFORM|matrix_8x32") game->selectPlatform();
+    if (message == "SELECT_PLATFORM|matrix_8x32") game->selectPlatform(ArenaType::MATRIX_8X32);
+    else if (message == "SELECT_PLATFORM|strip_1d") game->selectPlatform(ArenaType::STRIP_1D);
     else if (message == "SELECT_GAME|pixel_derby") game->selectGame(GameId::PIXEL_DERBY, *players);
     else if (message == "SELECT_GAME|tron_arena") game->selectGame(GameId::TRON_ARENA, *players);
     else if (message == "SELECT_GAME|pixel_raider") game->selectGame(GameId::PIXEL_RAIDER, *players);
     else if (message == "SELECT_GAME|color_clash") game->selectGame(GameId::COLOR_CLASH, *players);
+    else if (message == "SELECT_GAME|reflex_rally") game->selectGame(GameId::REFLEX_RALLY, *players);
+    else if (message == "SELECT_GAME|power_push") game->selectGame(GameId::POWER_PUSH, *players);
     else if (message.startsWith("READY|")) game->setReady(slot, commandArg(message) == "1", *players, *audio);
     else if (message == "START") game->start(slot, *players, *audio);
     else if (message == "TAP") game->tap(slot, *players, *audio);
@@ -198,7 +207,8 @@ private:
     json.reserve(1900);
     json = "{\"stage\":\"";
     json += stageName(game->stage);
-    json += "\",\"game\":\"" + String(gameName(game->selectedGame)) + "\"";
+    json += "\",\"arena\":\"" + String(arenaName(game->selectedArena)) + "\"";
+    json += ",\"game\":\"" + String(gameName(game->selectedGame)) + "\"";
     json += ",\"you\":" + String(you);
     json += ",\"host\":" + String(players->hostSlot());
     json += ",\"connected\":" + String(players->connectedCount());
@@ -220,6 +230,9 @@ private:
     json += ",\"displayLanguage\":\"" + String(DISPLAY_LANGUAGE_TR ? "tr" : "en") + "\"";
     json += ",\"topRaiderSlot\":" + String(game->topRaiderSlot);
     json += ",\"clashRemainingMs\":" + String(game->clashRemainingMs());
+    json += ",\"stripRally\":" + String(game->stripRally);
+    json += ",\"stripMarker\":" + String(game->stripMarker);
+    json += ",\"stripRemainingMs\":" + String(game->stripRemainingMs());
     json += ",\"clashCounts\":[";
     for (uint8_t i = 0; i < MAX_PLAYERS; i++) { if (i) json += ','; json += String(game->clashCounts[i]); }
     json += "]";

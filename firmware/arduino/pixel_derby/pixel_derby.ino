@@ -2,6 +2,7 @@
 #include "src/Types.h"
 #include "src/hardware/AudioOut.h"
 #include "src/hardware/MatrixRenderer.h"
+#include "src/hardware/StripRenderer.h"
 #include "src/session/PlayerManager.h"
 #include "src/games/pixel_derby/PixelDerbyGame.h"
 #include "src/net/ArcadeNetwork.h"
@@ -9,6 +10,7 @@
 
 AudioOut audio;
 MatrixRenderer renderer;
+StripRenderer stripRenderer;
 PlayerManager players;
 PixelDerbyGame game;
 ArcadeNetwork network;
@@ -27,6 +29,7 @@ void setup() {
 
   audio.begin();
   renderer.begin();
+  stripRenderer.begin();
   director.begin(audio);
   network.begin(players, game, audio);
 }
@@ -40,6 +43,12 @@ void loop() {
   const uint32_t now = millis();
   if (now - lastFrameMs >= 20) {
     lastFrameMs = now;
-    renderer.render(players, game, director);
+    if (game.selectedArena == ArenaType::STRIP_1D) {
+      renderer.clearPixels();
+      stripRenderer.render(players, game, now);
+    } else {
+      stripRenderer.clearPixels();
+      renderer.render(players, game, director);
+    }
   }
 }
