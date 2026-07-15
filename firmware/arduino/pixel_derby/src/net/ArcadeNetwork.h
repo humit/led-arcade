@@ -1,7 +1,8 @@
 #pragma once
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WebServer.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include <DNSServer.h>
 #include <WebSocketsServer.h>
 #include "../Config.h"
@@ -13,7 +14,7 @@
 
 class ArcadeNetwork {
 public:
-  WebServer http{80};
+  AsyncWebServer http{80};
   DNSServer dns;
   WebSocketsServer ws{WS_PORT};
 
@@ -27,13 +28,44 @@ public:
     WiFi.softAP(AP_SSID);
     dns.start(DNS_PORT, "*", AP_IP);
 
-    http.on("/", HTTP_GET, [this]() { sendRoot(); });
-    const char* captivePaths[] = {"/generate_204","/gen_204","/generate204","/hotspot-detect.html","/library/test/success.html","/success.html","/ncsi.txt","/connecttest.txt","/redirect"};
-    for (const char* path : captivePaths) http.on(path, HTTP_GET, [this]() { sendRoot(); });
-    http.onNotFound([this]() {
-      http.sendHeader("Location", String("http://") + AP_IP.toString() + "/", true);
-      http.send(302, "text/plain", "LED Arcade");
+    http.on("/", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      sendRoot(request);
     });
+
+    const char* captivePaths[] = {
+        "/generate_204",
+        "/gen_204",
+        "/generate204",
+        "/hotspot-detect.html",
+        "/library/test/success.html",
+        "/success.html",
+        "/ncsi.txt",
+        "/connecttest.txt",
+        "/redirect"
+    };
+    for (const char* path : captivePaths) {
+      http.on(path, HTTP_GET, [this](AsyncWebServerRequest* request) {
+        sendRoot(request);
+      });
+    }
+
+    http.onNotFound([this](AsyncWebServerRequest* request) {
+      AsyncWebServerResponse* response = request->beginResponse(
+          302,
+          "text/plain",
+          "LED Arcade"
+      );
+      response->addHeader(
+          "Location",
+          String("http://") + AP_IP.toString() + "/"
+      );
+      response->addHeader(
+          "Cache-Control",
+          "no-store, no-cache, must-revalidate, max-age=0"
+      );
+      request->send(response);
+    });
+
     http.begin();
 
     ws.begin();
@@ -47,9 +79,21 @@ public:
   }
 
   void loop() {
+    uint32_t startedUs = micros();
     dns.processNextRequest();
-    http.handleClient();
+    uint32_t dnsUs = micros() - startedUs;
+
+    startedUs = micros();
     ws.loop();
+    uint32_t wsUs = micros() - startedUs;
+
+    if (dnsUs > 50000 || wsUs > 50000) {
+      Serial.printf(
+          "[NET-BLOCK] dns=%lu us ws=%lu us\n",
+          static_cast<unsigned long>(dnsUs),
+          static_cast<unsigned long>(wsUs)
+      );
+    }
 
     const uint32_t now = millis();
     players->disconnectStale(now);
@@ -71,10 +115,17 @@ private:
   PixelDerbyGame* game = nullptr;
   AudioOut* audio = nullptr;
   uint32_t lastBroadcastMs = 0;
-
-  void sendRoot() {
-    http.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-    http.send_P(200, "text/html", ARCADE_HTML);
+  void sendRoot(AsyncWebServerRequest* request) {
+    AsyncWebServerResponse* response = request->beginResponse_P(
+        200,
+        "text/html",
+        ARCADE_HTML
+    );
+    response->addHeader(
+        "Cache-Control",
+        "no-store, no-cache, must-revalidate, max-age=0"
+    );
+    request->send(response);
   }
 
   String commandArg(const String& message) {

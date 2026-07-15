@@ -31,6 +31,8 @@ arduino-cli core install esp32:esp32
 echo "Installing required libraries..."
 arduino-cli lib install FastLED
 arduino-cli lib install "WebSockets"
+arduino-cli lib install "AsyncTCP"
+arduino-cli lib install "ESP Async WebServer"
 
 echo
 echo "Installed Arduino CLI:"
