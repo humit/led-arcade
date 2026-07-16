@@ -16,7 +16,7 @@ enum class ArcadeStage : uint8_t {
 
 enum class ArenaType : uint8_t { NONE, MATRIX_8X32, STRIP_1D, SCREEN_ARCADE };
 
-enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA, PIXEL_RAIDER, COLOR_CLASH, PIXEL_PONG, REFLEX_RALLY, POWER_PUSH, TAP_CLASH };
+enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA, PIXEL_RAIDER, COLOR_CLASH, PIXEL_PONG, REFLEX_RALLY, POWER_PUSH, TAP_CLASH, BRAIN_DUEL };
 
 enum class TronDirection : uint8_t { UP, RIGHT, DOWN, LEFT };
 
@@ -86,6 +86,7 @@ inline const char* gameName(GameId game) {
     case GameId::REFLEX_RALLY: return "reflex_rally";
     case GameId::POWER_PUSH: return "power_push";
     case GameId::TAP_CLASH: return "tap_clash";
+    case GameId::BRAIN_DUEL: return "brain_duel";
     default: return "none";
   }
 }

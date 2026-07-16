@@ -295,6 +295,46 @@ private:
     return true;
   }
 
+  bool parseBrainDuelInput(
+      const String& message,
+      uint32_t& questionId,
+      uint8_t& answerIndex
+  ) {
+    const int first = message.indexOf('|');
+    const int second = message.indexOf('|', first + 1);
+    if (first < 0 || second < 0) return false;
+
+    const String questionPart = message.substring(first + 1, second);
+    const String answerPart = message.substring(second + 1);
+    if (questionPart.length() == 0 || answerPart.length() == 0) return false;
+
+    const long parsedAnswer = answerPart.toInt();
+    if (parsedAnswer < 0 || parsedAnswer >= BRAIN_DUEL_OPTION_COUNT) return false;
+    questionId = strtoul(questionPart.c_str(), nullptr, 10);
+    answerIndex = uint8_t(parsedAnswer);
+    return true;
+  }
+
+  void appendJsonString(String& json, const String& value) {
+    json += '"';
+    for (size_t i = 0; i < value.length(); i++) {
+      const char c = value[i];
+      if (c == '"' || c == '\\') {
+        json += '\\';
+        json += c;
+      } else if (c == '\n') {
+        json += "\\n";
+      } else if (c == '\r') {
+        json += "\\r";
+      } else if (c == '\t') {
+        json += "\\t";
+      } else if (uint8_t(c) >= 0x20) {
+        json += c;
+      }
+    }
+    json += '"';
+  }
+
   void handleWsMessage(
       uint32_t client,
       const IPAddress& remoteIp,
@@ -345,6 +385,7 @@ private:
     else if (message == "SELECT_GAME|reflex_rally") game->selectGame(GameId::REFLEX_RALLY, *players);
     else if (message == "SELECT_GAME|power_push") game->selectGame(GameId::POWER_PUSH, *players);
     else if (message == "SELECT_GAME|tap_clash") game->selectGame(GameId::TAP_CLASH, *players);
+    else if (message == "SELECT_GAME|brain_duel") game->selectGame(GameId::BRAIN_DUEL, *players);
     else if (message.startsWith("READY|")) game->setReady(slot, commandArg(message) == "1", *players, *audio);
     else if (message == "START") game->start(slot, *players, *audio);
     else if (message == "TAP") game->tap(slot, *players, *audio);
@@ -353,6 +394,13 @@ private:
       uint8_t cell = 0;
       if (parseTapClashInput(message, targetId, cell)) {
         game->tapClashCell(slot, targetId, cell, *players);
+      }
+    }
+    else if (message.startsWith("BRAIN_ANSWER|")) {
+      uint32_t questionId = 0;
+      uint8_t answerIndex = 0;
+      if (parseBrainDuelInput(message, questionId, answerIndex)) {
+        game->brainDuelAnswer(slot, questionId, answerIndex, *players);
       }
     }
     else if (message == "TURN_LEFT") game->turn(slot, true, *players);
@@ -383,7 +431,7 @@ private:
 
     const int you = players->findByClient(client);
     String json;
-    json.reserve(2600);
+    json.reserve(4400);
     json = "{\"stage\":\"";
     json += stageName(game->stage);
     json += "\",\"arena\":\"" + String(arenaName(game->selectedArena)) + "\"";
@@ -404,6 +452,34 @@ private:
     json += ",\"tapClashEventId\":" + String(game->tapClash.eventId);
     json += ",\"tapClashEventType\":" + String(game->tapClash.eventType);
     json += ",\"tapClashEventSlot\":" + String(game->tapClash.eventSlot);
+    json += ",\"brainQuestionId\":" + String(game->brainDuel.questionId);
+    json += ",\"brainQuestionNumber\":" + String(game->brainDuel.questionNumber);
+    json += ",\"brainTotalQuestions\":" + String(BRAIN_DUEL_QUESTION_COUNT);
+    json += ",\"brainPhase\":" + String(uint8_t(game->brainDuel.phase));
+    json += ",\"brainKind\":" + String(uint8_t(game->brainDuel.kind));
+    json += ",\"brainDifficulty\":" + String(uint8_t(game->brainDuel.difficulty));
+    json += ",\"brainRemainingMs\":" + String(game->brainDuelRemainingMs());
+    json += ",\"brainCorrectIndex\":" + String(game->brainDuel.visibleCorrectIndex());
+    json += ",\"brainEventId\":" + String(game->brainDuel.eventId);
+    json += ",\"brainEventType\":" + String(game->brainDuel.eventType);
+    json += ",\"brainEventSlot\":" + String(game->brainDuel.eventSlot);
+    json += ",\"brainEventCorrect\":" + String(game->brainDuel.eventCorrect ? "true" : "false");
+    json += ",\"brainPromptTr\":";
+    appendJsonString(json, game->brainDuel.promptTr);
+    json += ",\"brainPromptEn\":";
+    appendJsonString(json, game->brainDuel.promptEn);
+    json += ",\"brainOptionsTr\":[";
+    for (uint8_t i = 0; i < BRAIN_DUEL_OPTION_COUNT; i++) {
+      if (i) json += ',';
+      appendJsonString(json, game->brainDuel.optionsTr[i]);
+    }
+    json += "]";
+    json += ",\"brainOptionsEn\":[";
+    for (uint8_t i = 0; i < BRAIN_DUEL_OPTION_COUNT; i++) {
+      if (i) json += ',';
+      appendJsonString(json, game->brainDuel.optionsEn[i]);
+    }
+    json += "]";
     json += ",\"deviceBestMs\":" + String(game->deviceBestRaceMs);
     json += ",\"newDeviceRecord\":" + String(game->newDeviceRecord ? "true" : "false");
     json += ",\"racesSinceBoss\":" + String(game->racesSinceBoss);
@@ -459,6 +535,9 @@ private:
       json += ",\"bossEnergy\":" + String(p.bossEnergy);
       json += ",\"stunnedMs\":" + String(game->stunRemainingMs(p));
       json += ",\"tapClashLockedMs\":" + String(game->tapClashLockRemainingMs(i));
+      json += ",\"brainAnswered\":" + String(game->brainDuel.answered[i] ? "true" : "false");
+      json += ",\"brainAnswerCorrect\":" + String(game->brainDuel.answerCorrect[i] ? "true" : "false");
+      json += ",\"brainSelectedAnswer\":" + String(game->brainDuel.selectedAnswer[i] == BrainDuelGame::NO_ANSWER ? -1 : int(game->brainDuel.selectedAnswer[i]));
       json += ",\"tronX\":" + String(p.tronX);
       json += ",\"tronY\":" + String(p.tronY);
       json += ",\"tronAlive\":" + String(p.tronAlive ? "true" : "false");
