@@ -50,6 +50,16 @@ static const uint32_t TAP_CLASH_CPU_MIN_MS = 430;
 static const uint32_t TAP_CLASH_CPU_MAX_MS = 920;
 static const uint8_t TAP_CLASH_POINTS_PER_TARGET = 10;
 static const uint8_t TAP_CLASH_WIN_BONUS_POINTS = 50;
+static const uint8_t BRAIN_DUEL_PLAYER_COUNT = 2;
+static const uint8_t BRAIN_DUEL_OPTION_COUNT = 4;
+static const uint8_t BRAIN_DUEL_QUESTION_COUNT = 10;
+static const uint32_t BRAIN_DUEL_EASY_QUESTION_MS = 8500;
+static const uint32_t BRAIN_DUEL_NORMAL_QUESTION_MS = 9500;
+static const uint32_t BRAIN_DUEL_CHALLENGE_QUESTION_MS = 10500;
+static const uint32_t BRAIN_DUEL_REVEAL_MS = 1700;
+static const uint8_t BRAIN_DUEL_CORRECT_POINTS = 10;
+static const uint8_t BRAIN_DUEL_FIRST_BONUS_POINTS = 2;
+static const uint8_t BRAIN_DUEL_WIN_BONUS_POINTS = 40;
 
 // Audio
 #define AUDIO_PIN 25

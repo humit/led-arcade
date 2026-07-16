@@ -6,6 +6,7 @@
 #include "../hardware/AudioOut.h"
 #include "../games/pixel_pong/PixelPongGame.h"
 #include "../games/tap_clash/TapClashGame.h"
+#include "../games/brain_duel/BrainDuelGame.h"
 
 class ArcadeGameEngine {
 public:
@@ -70,6 +71,7 @@ public:
 
   // Screen Arcade state
   TapClashGame tapClash;
+  BrainDuelGame brainDuel;
 
   // 1D arena state
   int8_t stripLeftSlot = -1;
@@ -100,6 +102,7 @@ public:
     pendingBoss = false;
     pong.clear();
     tapClash.clear();
+    brainDuel.clear();
     stage = ArcadeStage::PLATFORM_SELECT;
   }
 
@@ -112,6 +115,7 @@ public:
     pendingBoss = false;
     pong.clear();
     tapClash.clear();
+    brainDuel.clear();
     stage = ArcadeStage::GAME_SELECT;
   }
 
@@ -126,6 +130,7 @@ public:
     previousBossSlot = -1;
     pong.clear();
     tapClash.clear();
+    brainDuel.clear();
     stage = ArcadeStage::LOBBY;
   }
 
@@ -148,6 +153,7 @@ public:
     if (stage != ArcadeStage::LOBBY) return false;
     if (requester >= MAX_PLAYERS || !players.players[requester].connected || players.players[requester].waiting) return false;
     if (selectedGame == GameId::TAP_CLASH) players.ensureScreenArcadeCpus();
+    else if (selectedGame == GameId::BRAIN_DUEL) players.ensureAutomaticCpu();
     else if (selectedGame != GameId::PIXEL_RAIDER) players.ensureAutomaticCpu();
     const uint8_t active = players.activeCount();
     if (selectedGame == GameId::PIXEL_RAIDER) {
@@ -161,6 +167,7 @@ public:
     if (selectedGame == GameId::PIXEL_PONG && active != 2) return false;
     if ((selectedGame == GameId::REFLEX_RALLY || selectedGame == GameId::POWER_PUSH) && active != 2) return false;
     if (selectedGame == GameId::TAP_CLASH && active != SCREEN_ARCADE_PLAYER_COUNT) return false;
+    if (selectedGame == GameId::BRAIN_DUEL && active != BRAIN_DUEL_PLAYER_COUNT) return false;
 
     players.resetRound(false);
     winner = -1;
@@ -173,6 +180,7 @@ public:
     if (selectedGame == GameId::COLOR_CLASH) prepareClash(players);
     if (selectedGame == GameId::PIXEL_PONG && !pong.prepare(players)) return false;
     if (selectedGame == GameId::TAP_CLASH) tapClash.prepare(players);
+    if (selectedGame == GameId::BRAIN_DUEL) brainDuel.prepare(players);
     if (selectedGame == GameId::REFLEX_RALLY || selectedGame == GameId::POWER_PUSH) prepareStripGame(players);
     stage = ArcadeStage::COUNTDOWN;
     if (selectedArena != ArenaType::SCREEN_ARCADE) audio.countdown(countdownValue);
@@ -237,6 +245,16 @@ public:
     return tapClash.tap(slot, targetId, cell, players, millis());
   }
 
+  bool brainDuelAnswer(
+      uint8_t slot,
+      uint32_t questionId,
+      uint8_t answerIndex,
+      PlayerManager& players
+  ) {
+    if (selectedGame != GameId::BRAIN_DUEL || stage != ArcadeStage::RACING) return false;
+    return brainDuel.answer(slot, questionId, answerIndex, players, millis());
+  }
+
   bool turn(uint8_t slot, bool left, PlayerManager& players) {
     if (selectedGame != GameId::TRON_ARENA || stage != ArcadeStage::RACING || slot >= MAX_PLAYERS) return false;
     PlayerSlot& p = players.players[slot];
@@ -285,6 +303,13 @@ public:
         stage = ArcadeStage::LOBBY;
         return true;
       }
+      if (selectedGame == GameId::BRAIN_DUEL) {
+        players.resetMatch();
+        winner = -1;
+        brainDuel.clear();
+        stage = ArcadeStage::LOBBY;
+        return true;
+      }
       if (selectedGame == GameId::PIXEL_PONG) {
         players.resetRound(true);
         winner = -1;
@@ -317,6 +342,7 @@ public:
     const uint32_t now = millis();
     if (stage == ArcadeStage::LOBBY) {
       if (selectedGame == GameId::TAP_CLASH) players.ensureScreenArcadeCpus();
+      else if (selectedGame == GameId::BRAIN_DUEL) players.ensureAutomaticCpu();
       else if (selectedGame != GameId::PIXEL_RAIDER) players.ensureAutomaticCpu();
     }
     if (stage == ArcadeStage::ANNOUNCE) {
@@ -362,6 +388,7 @@ public:
       }
       if (selectedGame == GameId::PIXEL_PONG) pong.start(now);
       if (selectedGame == GameId::TAP_CLASH) tapClash.start(players, now);
+      if (selectedGame == GameId::BRAIN_DUEL) brainDuel.start(players, now);
       if (selectedGame == GameId::REFLEX_RALLY) stripLastStepMs = now;
       if (selectedGame == GameId::POWER_PUSH) stripEndsAtMs = now + STRIP_PUSH_DURATION_MS;
       stripCpuDueMs = 0;
@@ -379,6 +406,9 @@ public:
     }
     if (stage == ArcadeStage::RACING && selectedGame == GameId::TAP_CLASH) {
       if (tapClash.update(players, now)) finishTapClash(players);
+    }
+    if (stage == ArcadeStage::RACING && selectedGame == GameId::BRAIN_DUEL) {
+      if (brainDuel.update(players, now)) finishBrainDuel(players);
     }
     if (stage == ArcadeStage::RACING && selectedGame == GameId::REFLEX_RALLY) updateStripRally(players, audio, now);
     if (stage == ArcadeStage::RACING && selectedGame == GameId::POWER_PUSH) updatePowerPush(players, audio, now);
@@ -413,6 +443,10 @@ public:
     return tapClash.lockRemainingMs(slot, millis());
   }
 
+  uint32_t brainDuelRemainingMs() const {
+    return brainDuel.remainingMs(millis());
+  }
+
   uint32_t stripRemainingMs() const {
     if (selectedGame != GameId::POWER_PUSH || stage != ArcadeStage::RACING) return 0;
     const uint32_t now = millis();
@@ -429,6 +463,39 @@ public:
   }
 
 private:
+  void finishBrainDuel(PlayerManager& players) {
+    int8_t leader = -1;
+    uint8_t bestScore = 0;
+    bool tied = false;
+
+    for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
+      const PlayerSlot& player = players.players[slot];
+      if (!player.occupied || !player.connected || player.waiting) continue;
+      if (leader < 0 || player.score > bestScore) {
+        leader = slot;
+        bestScore = player.score;
+        tied = false;
+      } else if (player.score == bestScore) {
+        tied = true;
+      }
+    }
+
+    winner = tied ? -1 : leader;
+    for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
+      PlayerSlot& player = players.players[slot];
+      if (!player.occupied || !player.connected || player.waiting) continue;
+      if (slot == winner) {
+        player.wins++;
+        player.streak++;
+        player.bestStreak = max(player.bestStreak, player.streak);
+        player.totalPoints += BRAIN_DUEL_WIN_BONUS_POINTS;
+      } else {
+        player.streak = 0;
+      }
+    }
+    stage = ArcadeStage::RESULT;
+  }
+
   void finishTapClash(PlayerManager& players) {
     int8_t leader = -1;
     uint8_t bestScore = 0;
