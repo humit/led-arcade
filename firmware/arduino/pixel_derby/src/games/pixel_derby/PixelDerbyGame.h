@@ -128,6 +128,7 @@ public:
     if (!p.occupied || !p.connected || p.waiting) return false;
     p.ready = ready;
     audio.ready();
+    if (ready) start(slot, players, audio);
     return true;
   }
 
@@ -457,7 +458,7 @@ private:
       if (!validLeft && !validRight) return false;
       stripDirection = -stripDirection;
       stripRally++;
-      const uint32_t speedup = min<uint32_t>(stripRally * 4, STRIP_RALLY_STEP_START_MS - STRIP_RALLY_STEP_MIN_MS);
+      const uint32_t speedup = min<uint32_t>(stripRally * 5, STRIP_RALLY_STEP_START_MS - STRIP_RALLY_STEP_MIN_MS);
       stripStepMs = STRIP_RALLY_STEP_START_MS - speedup;
       stripCpuDueMs = 0;
       p.totalPoints += 5;
