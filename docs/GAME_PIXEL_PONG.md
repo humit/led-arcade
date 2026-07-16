@@ -25,7 +25,7 @@ Pixel Pong is the first new 8×32 game added after the 1D arena baseline. It use
 ## Main implementation
 
 ```text
-firmware/arduino/pixel_derby/src/games/pixel_pong/PixelPongGame.h
+firmware/arduino/led_arcade/src/games/pixel_pong/PixelPongGame.h
 ```
 
 Integration points:
@@ -34,7 +34,7 @@ Integration points:
 src/Types.h
 src/Config.h
 src/controller/ArcadePage.h
-src/games/pixel_derby/PixelDerbyGame.h
+src/core/ArcadeGameEngine.h
 src/hardware/AudioOut.h
 src/hardware/MatrixRenderer.h
 src/net/ArcadeNetwork.h
@@ -58,7 +58,7 @@ src/presentation/ArcadeDirector.h
 ## Build
 
 ```bash
-./tools/compile_pixel_derby.sh
+./tools/arcade compile
 ```
 
 Default FQBN:

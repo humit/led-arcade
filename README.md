@@ -17,7 +17,7 @@ ESP32-based physical LED arcade platform using phone controllers over a captive-
 
 ```bash
 cd /Users/uezerce/src/led-arcade
-./tools/compile_pixel_derby.sh
+./tools/arcade compile
 ```
 
 Default FQBN:
@@ -29,7 +29,7 @@ esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200
 ## Upload and monitor
 
 ```bash
-./tools/deploy_pixel_derby.sh /dev/cu.usbserial-XXXX
+./tools/arcade deploy /dev/cu.usbserial-XXXX
 ```
 
 ## Runtime flow

@@ -3,7 +3,7 @@
 #include "../Config.h"
 #include "../Types.h"
 #include "../session/PlayerManager.h"
-#include "../games/pixel_derby/PixelDerbyGame.h"
+#include "../core/ArcadeGameEngine.h"
 
 class StripRenderer {
 public:
@@ -17,7 +17,7 @@ public:
 
   void clearPixels() { fill_solid(leds, STRIP_LED_COUNT, CRGB::Black); }
 
-  void render(const PlayerManager& players, const PixelDerbyGame& game, uint32_t nowMs) {
+  void render(const PlayerManager& players, const ArcadeGameEngine& game, uint32_t nowMs) {
     clearPixels();
     if (game.stage == ArcadeStage::GAME_SELECT || game.selectedGame == GameId::NONE) renderArenaDemo(nowMs);
     else if (game.selectedGame == GameId::REFLEX_RALLY) renderRally(players, game);
@@ -31,7 +31,7 @@ private:
     return slot >= 0 && slot < MAX_PLAYERS ? colors[slot] : CRGB(60,60,60);
   }
 
-  void zones(const PixelDerbyGame& game) {
+  void zones(const ArcadeGameEngine& game) {
     const CRGB left = playerColor(game.stripLeftSlot), right = playerColor(game.stripRightSlot);
     for (uint16_t i=0;i<STRIP_HIT_ZONE_LEDS;i++) {
       leds[i] = left; leds[i].nscale8(75);
@@ -47,7 +47,7 @@ private:
     leds[head]=CRGB::White;
   }
 
-  void renderRally(const PlayerManager&, const PixelDerbyGame& game) {
+  void renderRally(const PlayerManager&, const ArcadeGameEngine& game) {
     zones(game);
     const int16_t x=constrain(game.stripBall,0,STRIP_LED_COUNT-1);
     leds[x]=CRGB::White;
@@ -55,7 +55,7 @@ private:
     if (x+1<STRIP_LED_COUNT) leds[x+1]=CRGB(18,18,18);
   }
 
-  void renderPush(const PlayerManager&, const PixelDerbyGame& game, uint32_t nowMs) {
+  void renderPush(const PlayerManager&, const ArcadeGameEngine& game, uint32_t nowMs) {
     const int16_t marker=constrain(game.stripMarker,0,STRIP_LED_COUNT-1);
     const CRGB left=playerColor(game.stripLeftSlot), right=playerColor(game.stripRightSlot);
     for (int16_t i=0;i<marker;i++) { leds[i]=left; leds[i].nscale8(80); }

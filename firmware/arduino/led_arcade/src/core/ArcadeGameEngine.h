@@ -1,12 +1,12 @@
 #pragma once
 #include <Arduino.h>
-#include "../../Config.h"
-#include "../../Types.h"
-#include "../../session/PlayerManager.h"
-#include "../../hardware/AudioOut.h"
-#include "../pixel_pong/PixelPongGame.h"
+#include "../Config.h"
+#include "../Types.h"
+#include "../session/PlayerManager.h"
+#include "../hardware/AudioOut.h"
+#include "../games/pixel_pong/PixelPongGame.h"
 
-class PixelDerbyGame {
+class ArcadeGameEngine {
 public:
   ArcadeStage stage = ArcadeStage::PLATFORM_SELECT;
   ArenaType selectedArena = ArenaType::NONE;

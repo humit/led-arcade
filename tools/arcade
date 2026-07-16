@@ -4,8 +4,8 @@ IFS=$'\n\t'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SKETCH_DIR="${SKETCH_DIR:-${ROOT}/firmware/arduino/pixel_derby}"
-BUILD_DIR="${BUILD_DIR:-${ROOT}/.build/pixel_derby}"
+SKETCH_DIR="${SKETCH_DIR:-${ROOT}/firmware/arduino/led_arcade}"
+BUILD_DIR="${BUILD_DIR:-${ROOT}/.build/led_arcade}"
 FQBN="${FQBN:-esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200}"
 BAUD="${BAUD:-115200}"
 ARDUINO_CLI="${ARDUINO_CLI:-arduino-cli}"
@@ -44,8 +44,8 @@ need_command() {
 }
 
 check_repo() {
-  [[ -f "${SKETCH_DIR}/pixel_derby.ino" ]] ||
-    die "Sketch not found: ${SKETCH_DIR}/pixel_derby.ino"
+  [[ -f "${SKETCH_DIR}/led_arcade.ino" ]] ||
+    die "Sketch not found: ${SKETCH_DIR}/led_arcade.ino"
 
   local conflict_output
   conflict_output="$(

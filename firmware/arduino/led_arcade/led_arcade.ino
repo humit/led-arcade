@@ -4,7 +4,7 @@
 #include "src/hardware/MatrixRenderer.h"
 #include "src/hardware/StripRenderer.h"
 #include "src/session/PlayerManager.h"
-#include "src/games/pixel_derby/PixelDerbyGame.h"
+#include "src/core/ArcadeGameEngine.h"
 #include "src/net/ArcadeNetwork.h"
 #include "src/presentation/ArcadeDirector.h"
 
@@ -12,7 +12,7 @@ AudioOut audio;
 MatrixRenderer renderer;
 StripRenderer stripRenderer;
 PlayerManager players;
-PixelDerbyGame game;
+ArcadeGameEngine game;
 ArcadeNetwork network;
 ArcadeDirector director;
 

@@ -3,7 +3,7 @@
 #include "../Config.h"
 #include "../Types.h"
 #include "../session/PlayerManager.h"
-#include "../games/pixel_derby/PixelDerbyGame.h"
+#include "../core/ArcadeGameEngine.h"
 #include "../presentation/ArcadeDirector.h"
 #include "../presentation/SpriteRenderer.h"
 #include "../assets/sprites/ArcadeSprites.h"
@@ -13,7 +13,7 @@ public:
   CRGB leds[LED_COUNT];
   void begin(){FastLED.addLeds<LED_TYPE,LED_PIN,COLOR_ORDER>(leds,LED_COUNT);FastLED.setBrightness(LED_BRIGHTNESS);clearPixels();FastLED.show();}
   void clearPixels(){fill_solid(leds,LED_COUNT,CRGB::Black);}
-  void render(const PlayerManager& players, PixelDerbyGame& game, const ArcadeDirector& director){
+  void render(const PlayerManager& players, ArcadeGameEngine& game, const ArcadeDirector& director){
     clearPixels();
     if (drawPresentationCue(game, director)) { FastLED.show(); return; }
     switch(game.stage){
@@ -61,7 +61,7 @@ private:
   int8_t activeOrder(const PlayerManager&p,uint8_t slot)const{int8_t o=0;for(uint8_t i=0;i<MAX_PLAYERS;i++){if(!p.players[i].occupied||!p.players[i].connected||p.players[i].waiting)continue;if(i==slot)return o;o++;}return -1;}
   uint8_t displayRow(const PlayerManager&p,uint8_t slot)const{static const uint8_t l[MAX_PLAYERS][MAX_PLAYERS]={{3,3,3,3,3,3,3,3},{2,5,5,5,5,5,5,5},{1,4,6,6,6,6,6,6},{0,2,5,7,7,7,7,7},{0,2,3,5,7,7,7,7},{0,1,3,4,6,7,7,7},{0,1,2,4,5,6,7,7},{0,1,2,3,4,5,6,7}};uint8_t c=activeCount(p);int8_t o=activeOrder(p,slot);return(c==0||o<0)?3:l[c-1][o];}
   static void spriteSet(void* ctx,int x,int y,CRGB c){static_cast<MatrixRenderer*>(ctx)->set(x,y,c);}
-  bool drawPresentationCue(const PixelDerbyGame& g,const ArcadeDirector& d){
+  bool drawPresentationCue(const ArcadeGameEngine& g,const ArcadeDirector& d){
     using Cue=ArcadeDirector::VisualCue;
     const uint32_t age=d.cueAgeMs();
     if(g.stage==ArcadeStage::PLATFORM_SELECT||g.stage==ArcadeStage::GAME_SELECT){
@@ -162,13 +162,13 @@ private:
     set(0,6,wifi);set(1,5,wifi);set(2,4,wifi);set(3,5,wifi);set(4,6,wifi);
   }
   void drawPlatformSelect(){drawAttract(millis());}
-  void drawGameSelect(const PixelDerbyGame&g){drawAttract(millis());}
-  void drawLobby(const PlayerManager&p,const PixelDerbyGame&g){for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(!x.occupied||!x.connected||x.waiting)continue;CRGB c=playerColor(i);c.nscale8_video(x.ready?180:50);uint8_t row=displayRow(p,i);for(uint8_t xx=0;xx<(x.ready?8:3);xx++)set(xx,row,c);}}
-  void drawAnnouncement(const PixelDerbyGame&g){if(g.announcePhase%2==0)drawText("BOSS",CRGB::Gold);else if(g.bossSlot>=0)drawText(colorName(g.bossSlot),playerColor(g.bossSlot));}
+  void drawGameSelect(const ArcadeGameEngine&g){drawAttract(millis());}
+  void drawLobby(const PlayerManager&p,const ArcadeGameEngine&g){for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(!x.occupied||!x.connected||x.waiting)continue;CRGB c=playerColor(i);c.nscale8_video(x.ready?180:50);uint8_t row=displayRow(p,i);for(uint8_t xx=0;xx<(x.ready?8:3);xx++)set(xx,row,c);}}
+  void drawAnnouncement(const ArcadeGameEngine&g){if(g.announcePhase%2==0)drawText("BOSS",CRGB::Gold);else if(g.bossSlot>=0)drawText(colorName(g.bossSlot),playerColor(g.bossSlot));}
   void drawCountdown(uint8_t v){if(v==0){for(uint8_t x=0;x<MATRIX_WIDTH;x++)for(uint8_t y=0;y<MATRIX_HEIGHT;y++)set(x,y,CRGB::Green);}else{char t[2]={char('0'+v),0};drawText(t,CRGB::White);}}
   void drawRace(const PlayerManager&p){for(uint8_t y=0;y<MATRIX_HEIGHT;y++){set(FINISH_X,y,CRGB(45,45,45));set(TURBO_X_1,y,CRGB(55,34,0));set(TURBO_X_2,y,CRGB(55,34,0));}for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(!x.occupied||!x.connected||x.waiting)continue;set(x.position,displayRow(p,i),x.turboTaps?CRGB::Gold:playerColor(i));}}
-  void drawTron(const PlayerManager&p,const PixelDerbyGame&g){for(uint16_t idx=0;idx<LED_COUNT;idx++){uint8_t owner=g.tronTrail[idx];if(!owner)continue;uint8_t y=idx/MATRIX_WIDTH,x=idx%MATRIX_WIDTH;CRGB c=playerColor(owner-1);c.nscale8_video(90);set(x,y,c);}for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(x.tronAlive)set(x.tronX,x.tronY,playerColor(i));}}
-  void drawClash(const PlayerManager& p,const PixelDerbyGame& g){
+  void drawTron(const PlayerManager&p,const ArcadeGameEngine&g){for(uint16_t idx=0;idx<LED_COUNT;idx++){uint8_t owner=g.tronTrail[idx];if(!owner)continue;uint8_t y=idx/MATRIX_WIDTH,x=idx%MATRIX_WIDTH;CRGB c=playerColor(owner-1);c.nscale8_video(90);set(x,y,c);}for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(x.tronAlive)set(x.tronX,x.tronY,playerColor(i));}}
+  void drawClash(const PlayerManager& p,const ArcadeGameEngine& g){
     for(uint8_t y=0;y<MATRIX_HEIGHT;y++)for(uint8_t x=0;x<MATRIX_WIDTH;x++){
       const uint8_t owner=g.clashPaint[y*MATRIX_WIDTH+x];
       if(owner){CRGB c=playerColor(owner-1);c.nscale8_video(75);set(x,y,c);}else set(x,y,CRGB(2,2,4));
@@ -177,7 +177,7 @@ private:
     const uint32_t remain=g.clashRemainingMs();
     if(remain>0&&remain<=5000){const uint8_t lights=(remain+999)/1000;for(uint8_t i=0;i<5;i++)set(27+i,0,i<lights?CRGB::White:CRGB(12,12,12));}
   }
-  void drawPong(const PlayerManager& p,const PixelDerbyGame& g){
+  void drawPong(const PlayerManager& p,const ArcadeGameEngine& g){
     const PixelPongGame& pong=g.pong;
     for(uint8_t y=0;y<MATRIX_HEIGHT;y++){
       if((y&1)==0){set(15,y,CRGB(10,10,16));set(16,y,CRGB(10,10,16));}
@@ -198,7 +198,7 @@ private:
       set(26-i,0,i<pong.rightScore?playerColor(pong.rightSlot):CRGB(8,8,12));
     }
   }
-  void drawRaider(const PixelDerbyGame&g){
+  void drawRaider(const ArcadeGameEngine&g){
     for(uint8_t y=0;y<MATRIX_HEIGHT;y++)for(uint8_t x=0;x<MATRIX_WIDTH;x++){
       uint8_t cell=g.raiderCells[y*MATRIX_WIDTH+x];
       if(cell==1)set(x,y,CRGB(20,40,70));
@@ -211,7 +211,7 @@ private:
     CRGB ship=g.raiderShield?CRGB::White:CRGB::Cyan;
     set(RAIDER_PLAYER_X,g.raiderPlayerY,ship); set(RAIDER_PLAYER_X-1,g.raiderPlayerY,ship);
   }
-  void drawResult(const PlayerManager&p,const PixelDerbyGame&g){if(g.selectedGame==GameId::PIXEL_RAIDER){if(g.raiderNewRecord){drawText(DISPLAY_LANGUAGE_TR?"REKOR":"RECORD",CRGB::Gold);}else{drawText(((millis()/900)%2)==0?"GAME":"OVER",CRGB::Red);}return;}if(g.selectedGame==GameId::COLOR_CLASH){if(g.winner<0){drawText(DISPLAY_LANGUAGE_TR?"BERABERE":"DRAW",CRGB::White);return;}const char* word=DISPLAY_LANGUAGE_TR?"KAZANAN":"WINNER";if((millis()/900)%2==0)drawText(word,CRGB::White);else drawText(colorName(g.winner),playerColor(g.winner));return;}if(g.winner<0){drawText(DISPLAY_LANGUAGE_TR?"BERABERE":"DRAW",CRGB::White);return;}const char* word=DISPLAY_LANGUAGE_TR?"KAZANAN":"WINNER";if((millis()/900)%2==0)drawText(word,CRGB::White);else drawText(colorName(g.winner),playerColor(g.winner));}
-  void drawBoss(const PlayerManager&p,const PixelDerbyGame&g){const uint8_t bs=25;if(g.bossSlot>=0){CRGB c=playerColor(g.bossSlot);c.nscale8_video((millis()/110)%2?230:110);for(uint8_t x=bs;x<MATRIX_WIDTH;x++)for(uint8_t y=1;y<7;y++)if(x==bs||x==31||y==1||y==6||((x+y+millis()/140)%3==0))set(x,y,c);set(27,0,CRGB::Gold);set(29,0,CRGB::Gold);set(31,0,CRGB::Gold);}uint8_t hp=g.bossMaxHp?uint8_t((uint32_t(g.bossHp)*23+g.bossMaxHp-1)/g.bossMaxHp):0;for(uint8_t x=0;x<23;x++)set(x,0,x<hp?CRGB::Red:CRGB(18,0,0));for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(!x.occupied||!x.connected||x.waiting||i==g.bossSlot)continue;uint8_t row=displayRow(p,i);CRGB c=g.stunRemainingMs(x)?CRGB::White:playerColor(i);set(0,row,c);set(2+((millis()/75+x.bossDamage*3)%21),row,c);}}
-  void drawBossResult(const PlayerManager&p,const PixelDerbyGame&g){if(g.bossDefeated)drawText(DISPLAY_LANGUAGE_TR?"TAKIM":"TEAM",CRGB::Green);else if(g.bossSlot>=0)drawText(colorName(g.bossSlot),playerColor(g.bossSlot));}
+  void drawResult(const PlayerManager&p,const ArcadeGameEngine&g){if(g.selectedGame==GameId::PIXEL_RAIDER){if(g.raiderNewRecord){drawText(DISPLAY_LANGUAGE_TR?"REKOR":"RECORD",CRGB::Gold);}else{drawText(((millis()/900)%2)==0?"GAME":"OVER",CRGB::Red);}return;}if(g.selectedGame==GameId::COLOR_CLASH){if(g.winner<0){drawText(DISPLAY_LANGUAGE_TR?"BERABERE":"DRAW",CRGB::White);return;}const char* word=DISPLAY_LANGUAGE_TR?"KAZANAN":"WINNER";if((millis()/900)%2==0)drawText(word,CRGB::White);else drawText(colorName(g.winner),playerColor(g.winner));return;}if(g.winner<0){drawText(DISPLAY_LANGUAGE_TR?"BERABERE":"DRAW",CRGB::White);return;}const char* word=DISPLAY_LANGUAGE_TR?"KAZANAN":"WINNER";if((millis()/900)%2==0)drawText(word,CRGB::White);else drawText(colorName(g.winner),playerColor(g.winner));}
+  void drawBoss(const PlayerManager&p,const ArcadeGameEngine&g){const uint8_t bs=25;if(g.bossSlot>=0){CRGB c=playerColor(g.bossSlot);c.nscale8_video((millis()/110)%2?230:110);for(uint8_t x=bs;x<MATRIX_WIDTH;x++)for(uint8_t y=1;y<7;y++)if(x==bs||x==31||y==1||y==6||((x+y+millis()/140)%3==0))set(x,y,c);set(27,0,CRGB::Gold);set(29,0,CRGB::Gold);set(31,0,CRGB::Gold);}uint8_t hp=g.bossMaxHp?uint8_t((uint32_t(g.bossHp)*23+g.bossMaxHp-1)/g.bossMaxHp):0;for(uint8_t x=0;x<23;x++)set(x,0,x<hp?CRGB::Red:CRGB(18,0,0));for(uint8_t i=0;i<MAX_PLAYERS;i++){const auto&x=p.players[i];if(!x.occupied||!x.connected||x.waiting||i==g.bossSlot)continue;uint8_t row=displayRow(p,i);CRGB c=g.stunRemainingMs(x)?CRGB::White:playerColor(i);set(0,row,c);set(2+((millis()/75+x.bossDamage*3)%21),row,c);}}
+  void drawBossResult(const PlayerManager&p,const ArcadeGameEngine&g){if(g.bossDefeated)drawText(DISPLAY_LANGUAGE_TR?"TAKIM":"TEAM",CRGB::Green);else if(g.bossSlot>=0)drawText(colorName(g.bossSlot),playerColor(g.bossSlot));}
 };

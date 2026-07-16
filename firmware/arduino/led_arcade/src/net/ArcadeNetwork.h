@@ -10,7 +10,7 @@
 #include "../Types.h"
 #include "../controller/ArcadePage.h"
 #include "../session/PlayerManager.h"
-#include "../games/pixel_derby/PixelDerbyGame.h"
+#include "../core/ArcadeGameEngine.h"
 #include "../hardware/AudioOut.h"
 
 class ArcadeNetwork {
@@ -22,7 +22,7 @@ public:
 
   void begin(
       PlayerManager& playerRef,
-      PixelDerbyGame& gameRef,
+      ArcadeGameEngine& gameRef,
       AudioOut& audioRef
   ) {
     players = &playerRef;
@@ -177,7 +177,7 @@ private:
   };
 
   PlayerManager* players = nullptr;
-  PixelDerbyGame* game = nullptr;
+  ArcadeGameEngine* game = nullptr;
   AudioOut* audio = nullptr;
   QueueHandle_t wsEvents = nullptr;
   volatile uint32_t droppedWsEvents = 0;

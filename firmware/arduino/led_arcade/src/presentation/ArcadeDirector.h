@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include "../Types.h"
 #include "../hardware/AudioOut.h"
-#include "../games/pixel_derby/PixelDerbyGame.h"
+#include "../core/ArcadeGameEngine.h"
 #include "../session/PlayerManager.h"
 
 class ArcadeDirector {
@@ -28,7 +28,7 @@ public:
     attractStartedMs = cueStartedMs;
   }
 
-  void update(const PixelDerbyGame& game, const PlayerManager& players) {
+  void update(const ArcadeGameEngine& game, const PlayerManager& players) {
     const bool menuStage = game.stage == ArcadeStage::PLATFORM_SELECT || game.stage == ArcadeStage::GAME_SELECT;
     const bool noHumans = players.humanActiveCount() == 0;
 
@@ -102,7 +102,7 @@ private:
     }
   }
 
-  void updateGameCues(const PixelDerbyGame& game) {
+  void updateGameCues(const ArcadeGameEngine& game) {
     if (!initialized) {
       previousStage = game.stage;
       previousGame = game.selectedGame;
