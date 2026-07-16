@@ -4,7 +4,8 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <DNSServer.h>
-#include <WebSocketsServer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include "../Config.h"
 #include "../Types.h"
 #include "../controller/ArcadePage.h"
@@ -15,13 +16,24 @@
 class ArcadeNetwork {
 public:
   AsyncWebServer http{80};
+  AsyncWebServer socketHttp{WS_PORT};
   DNSServer dns;
-  WebSocketsServer ws{WS_PORT};
+  AsyncWebSocket ws{"/"};
 
-  void begin(PlayerManager& playerRef, PixelDerbyGame& gameRef, AudioOut& audioRef) {
+  void begin(
+      PlayerManager& playerRef,
+      PixelDerbyGame& gameRef,
+      AudioOut& audioRef
+  ) {
     players = &playerRef;
     game = &gameRef;
     audio = &audioRef;
+
+    wsEvents = xQueueCreate(WS_EVENT_QUEUE_SIZE, sizeof(WsEvent));
+    if (wsEvents == nullptr) {
+      Serial.println("[FATAL] Could not create WebSocket event queue");
+      return;
+    }
 
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
@@ -66,55 +78,113 @@ public:
       request->send(response);
     });
 
+    ws.onEvent(
+        [this](
+            AsyncWebSocket*,
+            AsyncWebSocketClient* client,
+            AwsEventType type,
+            void* arg,
+            uint8_t* data,
+            size_t length
+        ) {
+          enqueueWsEvent(client, type, arg, data, length);
+        }
+    );
+
     http.begin();
+    socketHttp.addHandler(&ws);
+    socketHttp.begin();
 
-    ws.begin();
-    ws.onEvent([this](uint8_t client, WStype_t type, uint8_t* payload, size_t length) {
-      handleWs(client, type, payload, length);
-    });
-
-    Serial.println("[OK] LED Arcade captive portal + WebSocket started");
-    Serial.print("[INFO] HTTP: http://"); Serial.println(AP_IP);
-    Serial.print("[INFO] WebSocket port: "); Serial.println(WS_PORT);
+    Serial.println("[OK] LED Arcade captive portal + async WebSocket started");
+    Serial.print("[INFO] HTTP: http://");
+    Serial.println(AP_IP);
+    Serial.print("[INFO] WebSocket port: ");
+    Serial.println(WS_PORT);
   }
 
   void loop() {
-    uint32_t startedUs = micros();
+    const uint32_t startedUs = micros();
     dns.processNextRequest();
-    uint32_t dnsUs = micros() - startedUs;
+    const uint32_t dnsUs = micros() - startedUs;
 
-    startedUs = micros();
-    ws.loop();
-    uint32_t wsUs = micros() - startedUs;
-
-    if (dnsUs > 50000 || wsUs > 50000) {
-      Serial.printf(
-          "[NET-BLOCK] dns=%lu us ws=%lu us\n",
-          static_cast<unsigned long>(dnsUs),
-          static_cast<unsigned long>(wsUs)
-      );
-    }
+    processWsEvents();
 
     const uint32_t now = millis();
     players->disconnectStale(now);
     players->expire(now);
+
+    if (now - lastWsCleanupMs >= WS_CLEANUP_INTERVAL_MS) {
+      lastWsCleanupMs = now;
+      ws.cleanupClients(MAX_PLAYERS + 2);
+    }
+
     if (now - lastBroadcastMs >= STATE_BROADCAST_MS) {
       lastBroadcastMs = now;
       broadcastState();
     }
+
+    if (dnsUs > 50000) {
+      Serial.printf(
+          "[NET-BLOCK] dns=%lu us\n",
+          static_cast<unsigned long>(dnsUs)
+      );
+    }
+
+    if (droppedWsEvents != reportedDroppedWsEvents) {
+      reportedDroppedWsEvents = droppedWsEvents;
+      Serial.printf(
+          "[NET-WARN] dropped WebSocket events=%lu\n",
+          static_cast<unsigned long>(reportedDroppedWsEvents)
+      );
+    }
   }
 
   void broadcastState() {
-    for (uint8_t client = 0; client < WEBSOCKETS_SERVER_CLIENT_MAX; client++) {
-      if (ws.clientIsConnected(client)) sendState(client);
+    for (uint8_t slot = 0; slot < MAX_PLAYERS; ++slot) {
+      const PlayerSlot& player = players->players[slot];
+      if (!player.occupied ||
+          !player.connected ||
+          player.isCpu ||
+          player.wsClient == INVALID_WS_CLIENT) {
+        continue;
+      }
+
+      if (!ws.hasClient(player.wsClient) ||
+          !ws.availableForWrite(player.wsClient)) {
+        continue;
+      }
+
+      sendState(player.wsClient);
     }
   }
 
 private:
+  enum class WsEventType : uint8_t {
+    TEXT,
+    DISCONNECTED
+  };
+
+  static constexpr size_t WS_EVENT_TEXT_MAX = 192;
+  static constexpr uint8_t WS_EVENT_QUEUE_SIZE = 24;
+  static constexpr uint32_t WS_CLEANUP_INTERVAL_MS = 1000;
+
+  struct WsEvent {
+    WsEventType type = WsEventType::TEXT;
+    uint32_t clientId = INVALID_WS_CLIENT;
+    uint8_t remoteIp[4] = {0, 0, 0, 0};
+    uint16_t length = 0;
+    char text[WS_EVENT_TEXT_MAX] = {};
+  };
+
   PlayerManager* players = nullptr;
   PixelDerbyGame* game = nullptr;
   AudioOut* audio = nullptr;
+  QueueHandle_t wsEvents = nullptr;
+  volatile uint32_t droppedWsEvents = 0;
+  uint32_t reportedDroppedWsEvents = 0;
   uint32_t lastBroadcastMs = 0;
+  uint32_t lastWsCleanupMs = 0;
+
   void sendRoot(AsyncWebServerRequest* request) {
     AsyncWebServerResponse* response = request->beginResponse_P(
         200,
@@ -128,25 +198,95 @@ private:
     request->send(response);
   }
 
+  void enqueueWsEvent(
+      AsyncWebSocketClient* client,
+      AwsEventType type,
+      void* arg,
+      const uint8_t* data,
+      size_t length
+  ) {
+    if (client == nullptr || wsEvents == nullptr) return;
+
+    WsEvent event;
+    event.clientId = client->id();
+
+    const IPAddress remoteIp = client->remoteIP();
+    for (uint8_t i = 0; i < 4; ++i) {
+      event.remoteIp[i] = remoteIp[i];
+    }
+
+    if (type == WS_EVT_DISCONNECT) {
+      event.type = WsEventType::DISCONNECTED;
+    } else if (type == WS_EVT_DATA) {
+      const AwsFrameInfo* info = static_cast<const AwsFrameInfo*>(arg);
+      if (info == nullptr ||
+          !info->final ||
+          info->index != 0 ||
+          info->len != length ||
+          info->opcode != WS_TEXT) {
+        return;
+      }
+
+      if (length == 0 || length >= WS_EVENT_TEXT_MAX) {
+        ++droppedWsEvents;
+        return;
+      }
+
+      event.type = WsEventType::TEXT;
+      event.length = static_cast<uint16_t>(length);
+      memcpy(event.text, data, length);
+      event.text[length] = '\0';
+    } else {
+      return;
+    }
+
+    if (xQueueSend(wsEvents, &event, 0) != pdTRUE) {
+      ++droppedWsEvents;
+    }
+  }
+
+  void processWsEvents() {
+    if (wsEvents == nullptr) return;
+
+    WsEvent event;
+    while (xQueueReceive(wsEvents, &event, 0) == pdTRUE) {
+      if (event.type == WsEventType::DISCONNECTED) {
+        players->disconnect(event.clientId, millis());
+        broadcastState();
+        continue;
+      }
+
+      const IPAddress remoteIp(
+          event.remoteIp[0],
+          event.remoteIp[1],
+          event.remoteIp[2],
+          event.remoteIp[3]
+      );
+      handleWsMessage(
+          event.clientId,
+          remoteIp,
+          String(event.text)
+      );
+    }
+  }
+
   String commandArg(const String& message) {
     const int separator = message.indexOf('|');
     return separator < 0 ? "" : message.substring(separator + 1);
   }
 
-  void handleWs(uint8_t client, WStype_t type, uint8_t* payload, size_t length) {
-    if (type == WStype_DISCONNECTED) {
-      players->disconnect(client, millis());
-      broadcastState();
-      return;
-    }
-    if (type != WStype_TEXT) return;
-
-    String message;
-    message.reserve(length + 1);
-    for (size_t i = 0; i < length; i++) message += char(payload[i]);
-
+  void handleWsMessage(
+      uint32_t client,
+      const IPAddress& remoteIp,
+      const String& message
+  ) {
     if (message.startsWith("HELLO|")) {
-      const int slot = players->connect(commandArg(message), client, ws.remoteIP(client), millis());
+      const int slot = players->connect(
+          commandArg(message),
+          client,
+          remoteIp,
+          millis()
+      );
       if (slot >= 0) audio->playerJoined();
       sendState(client);
       broadcastState();
@@ -198,13 +338,20 @@ private:
     else if (message == "CLASH_LEFT") game->clashMove(slot, TronDirection::LEFT, *players);
     else if (message == "WAIT|1") game->setWaiting(slot, true, *players);
     else if (message == "WAIT|0") game->setWaiting(slot, false, *players);
-    else if (message == "LEAVE") { players->leave(slot); sendState(client); broadcastState(); return; }
+    else if (message == "LEAVE") {
+      players->leave(slot);
+      sendState(client);
+      broadcastState();
+      return;
+    }
     else if (message == "REMATCH") game->rematch(slot, *players);
 
     broadcastState();
   }
 
-  void sendState(uint8_t client) {
+  void sendState(uint32_t client) {
+    if (!ws.hasClient(client) || !ws.availableForWrite(client)) return;
+
     const int you = players->findByClient(client);
     String json;
     json.reserve(2200);
@@ -242,7 +389,10 @@ private:
     json += ",\"pongRightScore\":" + String(game->pong.rightScore);
     json += ",\"pongPointPause\":" + String(game->pong.pointPause ? "true" : "false");
     json += ",\"clashCounts\":[";
-    for (uint8_t i = 0; i < MAX_PLAYERS; i++) { if (i) json += ','; json += String(game->clashCounts[i]); }
+    for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
+      if (i) json += ',';
+      json += String(game->clashCounts[i]);
+    }
     json += "]";
     json += ",\"players\":[";
 
@@ -278,6 +428,7 @@ private:
       json += ",\"clashY\":" + String(p.clashY) + "}";
     }
     json += "]}";
-    ws.sendTXT(client, json);
+
+    ws.text(client, json);
   }
 };

@@ -19,7 +19,7 @@ public:
     return -1;
   }
 
-  int findByClient(uint8_t client) const {
+  int findByClient(uint32_t client) const {
     for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
       if (players[i].occupied && !players[i].isCpu && players[i].connected && players[i].wsClient == client) return i;
     }
@@ -40,7 +40,7 @@ public:
     return best;
   }
 
-  int connect(const String& cid, uint8_t client, const IPAddress& remoteIp, uint32_t now) {
+  int connect(const String& cid, uint32_t client, const IPAddress& remoteIp, uint32_t now) {
     int slot = findByCid(cid);
     if (slot < 0) slot = findByIp(remoteIp);
     if (slot < 0) slot = findReusableDisconnectedSlot();
@@ -67,12 +67,12 @@ public:
     return slot;
   }
 
-  void touch(uint8_t client, uint32_t now) {
+  void touch(uint32_t client, uint32_t now) {
     const int slot = findByClient(client);
     if (slot >= 0) players[slot].lastSeenMs = now;
   }
 
-  void disconnect(uint8_t client, uint32_t now) {
+  void disconnect(uint32_t client, uint32_t now) {
     const int slot = findByClient(client);
     if (slot >= 0) markDisconnected(slot, now);
   }
@@ -236,7 +236,7 @@ private:
     if (p.isCpu) return;
     p.connected = false;
     p.ready = false;
-    p.wsClient = 255;
+    p.wsClient = INVALID_WS_CLIENT;
     p.disconnectedAtMs = now;
   }
 };

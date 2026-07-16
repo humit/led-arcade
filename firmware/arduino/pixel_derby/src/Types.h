@@ -20,13 +20,15 @@ enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA, PIXEL_RAIDER, COLOR
 
 enum class TronDirection : uint8_t { UP, RIGHT, DOWN, LEFT };
 
+static constexpr uint32_t INVALID_WS_CLIENT = UINT32_MAX;
+
 struct PlayerSlot {
   bool occupied = false;
   bool connected = false;
   bool isCpu = false;
   bool ready = false;
   bool waiting = false;
-  uint8_t wsClient = 255;
+  uint32_t wsClient = INVALID_WS_CLIENT;
   String cid;
   IPAddress remoteIp;
   uint32_t lastSeenMs = 0;
