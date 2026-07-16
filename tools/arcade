@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SKETCH_DIR="${SKETCH_DIR:-${ROOT}/firmware/arduino/pixel_derby}"
+BUILD_DIR="${BUILD_DIR:-${ROOT}/.build/pixel_derby}"
+FQBN="${FQBN:-esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200}"
+BAUD="${BAUD:-115200}"
+ARDUINO_CLI="${ARDUINO_CLI:-arduino-cli}"
+PORT="${PORT:-}"
+CLEAN_BUILD=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./tools/arcade doctor
+  ./tools/arcade ports
+  ./tools/arcade compile [--clean]
+  ./tools/arcade upload [--port DEVICE]
+  ./tools/arcade deploy [--clean] [--port DEVICE]  # normal workflow
+  ./tools/arcade monitor [--port DEVICE]
+  ./tools/arcade clean
+
+Environment overrides:
+  PORT=/dev/cu.usbserial-... 
+  FQBN=esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200
+  BAUD=115200
+  BUILD_DIR=/path/to/build
+  ARDUINO_CLI=/path/to/arduino-cli
+
+The canonical compile command injects WEBSOCKETS_TCP_TIMEOUT into the
+arduinoWebSockets library build. Do not bypass this helper for release builds.
+EOF
+}
+
+log() { printf '[arcade] %s\n' "$*"; }
+warn() { printf '[arcade] WARNING: %s\n' "$*" >&2; }
+die() { printf '[arcade] ERROR: %s\n' "$*" >&2; exit 1; }
+
+need_command() {
+  command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
+}
+
+check_repo() {
+  [[ -f "${SKETCH_DIR}/pixel_derby.ino" ]] ||
+    die "Sketch not found: ${SKETCH_DIR}/pixel_derby.ino"
+
+  local conflict_output
+  conflict_output="$(
+    grep -RInE '^(<<<<<<<|=======|>>>>>>>)' \
+      "${ROOT}/firmware" "${ROOT}/tools" \
+      --include='*.h' --include='*.hpp' --include='*.c' --include='*.cpp' \
+      --include='*.ino' --include='*.sh' 2>/dev/null || true
+  )"
+  [[ -z "${conflict_output}" ]] ||
+    die $'Unresolved merge markers found:\n'"${conflict_output}"
+
+  if command -v git >/dev/null 2>&1 && git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "${ROOT}" diff --check || die "git diff --check failed"
+  fi
+}
+
+candidate_ports() {
+  local pattern path
+
+  for pattern in \
+    '/dev/cu.usbserial*' \
+    '/dev/cu.SLAB_USBtoUART*' \
+    '/dev/cu.wchusbserial*' \
+    '/dev/cu.usbmodem*' \
+    '/dev/ttyUSB*' \
+    '/dev/ttyACM*'
+  do
+    for path in $pattern; do
+      [[ -e "${path}" ]] && printf '%s\n' "${path}"
+    done
+  done
+}
+
+list_ports() {
+  need_command "${ARDUINO_CLI}"
+  candidate_ports | awk '!seen[$0]++'
+}
+
+resolve_port() {
+  if [[ -n "${PORT}" ]]; then
+    [[ -e "${PORT}" ]] || die "Serial port does not exist: ${PORT}"
+    printf '%s\n' "${PORT}"
+    return
+  fi
+
+  local ports_file
+  ports_file="$(mktemp)"
+  trap 'rm -f "${ports_file}"' RETURN
+  list_ports >"${ports_file}"
+
+  local count
+  count="$(wc -l <"${ports_file}" | tr -d ' ')"
+  case "${count}" in
+    0)
+      die "No serial port found. Connect the ESP32 or pass --port DEVICE."
+      ;;
+    1)
+      cat "${ports_file}"
+      ;;
+    *)
+      printf '[arcade] Multiple serial ports found:\n' >&2
+      sed 's/^/  /' "${ports_file}" >&2
+      die "Select one with --port DEVICE or PORT=DEVICE."
+      ;;
+  esac
+}
+
+compile_firmware() {
+  need_command "${ARDUINO_CLI}"
+  check_repo
+  mkdir -p "${BUILD_DIR}"
+
+  local args=(
+    compile
+    --fqbn "${FQBN}"
+    --build-path "${BUILD_DIR}"
+  )
+  if [[ "${CLEAN_BUILD}" -eq 1 ]]; then
+    args+=(--clean)
+  fi
+  args+=("${SKETCH_DIR}")
+
+  log "Compiling firmware"
+  log "Sketch: ${SKETCH_DIR}"
+  log "FQBN: ${FQBN}"
+  log "Build: ${BUILD_DIR}"
+  "${ARDUINO_CLI}" "${args[@]}"
+}
+
+upload_firmware() {
+  need_command "${ARDUINO_CLI}"
+  check_repo
+  [[ -d "${BUILD_DIR}" ]] || die "Build directory missing. Run compile first."
+
+  local binary_count
+  binary_count="$(find "${BUILD_DIR}" -maxdepth 1 -type f -name '*.bin' | wc -l | tr -d ' ')"
+  [[ "${binary_count}" -gt 0 ]] || die "No firmware binaries found in ${BUILD_DIR}. Run compile first."
+
+  local serial_port
+  serial_port="$(resolve_port)"
+  log "Uploading through ${serial_port}"
+  "${ARDUINO_CLI}" upload \
+    --fqbn "${FQBN}" \
+    --port "${serial_port}" \
+    --input-dir "${BUILD_DIR}" \
+    "${SKETCH_DIR}"
+}
+
+monitor_serial() {
+  need_command "${ARDUINO_CLI}"
+  local serial_port
+  serial_port="$(resolve_port)"
+  log "Monitoring ${serial_port} at ${BAUD} baud"
+  "${ARDUINO_CLI}" monitor \
+    --port "${serial_port}" \
+    --fqbn "${FQBN}" \
+    --config "baudrate=${BAUD}"
+}
+
+deploy_firmware() {
+  compile_firmware
+
+  # Resolve once so upload and monitor always use the same device.
+  PORT="$(resolve_port)"
+  log "Deployment port: ${PORT}"
+
+  upload_firmware
+
+  log "Upload completed; starting serial monitor"
+  monitor_serial
+}
+
+doctor() {
+  need_command "${ARDUINO_CLI}"
+  need_command python3
+  check_repo
+
+  log "Repository: ${ROOT}"
+  log "Sketch: ${SKETCH_DIR}"
+  log "FQBN: ${FQBN}"
+  log "Build directory: ${BUILD_DIR}"
+  "${ARDUINO_CLI}" version
+
+  log "Installed ESP32 core"
+  "${ARDUINO_CLI}" core list | awk 'NR == 1 || $1 == "esp32:esp32"'
+
+  log "Relevant libraries"
+  "${ARDUINO_CLI}" lib list | awk '
+    NR == 1 ||
+    tolower($0) ~ /fastled|async.?tcp|esp.?async.?webserver/
+  '
+
+  log "Detected serial ports"
+  local ports
+  ports="$(list_ports || true)"
+  if [[ -n "${ports}" ]]; then
+    printf '%s\n' "${ports}" | sed 's/^/  /'
+  else
+    warn "No serial port is currently visible."
+  fi
+
+  log "Doctor checks passed"
+}
+
+COMMAND="${1:-help}"
+[[ $# -gt 0 ]] && shift
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --port)
+      [[ $# -ge 2 ]] || die "--port requires a device"
+      PORT="$2"
+      shift 2
+      ;;
+    --fqbn)
+      [[ $# -ge 2 ]] || die "--fqbn requires a value"
+      FQBN="$2"
+      shift 2
+      ;;
+    --clean)
+      CLEAN_BUILD=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "Unknown option: $1"
+      ;;
+  esac
+done
+
+case "${COMMAND}" in
+  doctor)
+    doctor
+    ;;
+  ports)
+    list_ports
+    ;;
+  compile)
+    compile_firmware
+    ;;
+  upload)
+    upload_firmware
+    ;;
+  deploy)
+    deploy_firmware
+    ;;
+  monitor)
+    monitor_serial
+    ;;
+  clean)
+    log "Removing ${BUILD_DIR}"
+    rm -rf "${BUILD_DIR}"
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    usage >&2
+    die "Unknown command: ${COMMAND}"
+    ;;
+esac
