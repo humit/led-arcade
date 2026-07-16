@@ -103,6 +103,7 @@ private:
   }
 
   void updateGameCues(const ArcadeGameEngine& game) {
+    const bool browserAudio = game.selectedArena == ArenaType::SCREEN_ARCADE;
     if (!initialized) {
       previousStage = game.stage;
       previousGame = game.selectedGame;
@@ -114,7 +115,7 @@ private:
 
     if (game.selectedGame != previousGame) {
       previousGame = game.selectedGame;
-      if (audio) audio->menuSelect();
+      if (audio && !browserAudio) audio->menuSelect();
       if (game.selectedGame == GameId::PIXEL_DERBY) setCue(VisualCue::DERBY);
       else if (game.selectedGame == GameId::PIXEL_RAIDER) setCue(VisualCue::RAIDER);
       else if (game.selectedGame == GameId::COLOR_CLASH) setCue(VisualCue::PAINT);
@@ -125,20 +126,20 @@ private:
       const ArcadeStage old = previousStage;
       previousStage = game.stage;
       if (game.stage == ArcadeStage::PLATFORM_SELECT || game.stage == ArcadeStage::GAME_SELECT) setCue(VisualCue::MENU_ATTRACT);
-      if (game.stage == ArcadeStage::COUNTDOWN && old != ArcadeStage::ANNOUNCE && audio) audio->gameStart();
-      if (game.stage == ArcadeStage::ANNOUNCE && audio) audio->bossIntro();
+      if (game.stage == ArcadeStage::COUNTDOWN && old != ArcadeStage::ANNOUNCE && audio && !browserAudio) audio->gameStart();
+      if (game.stage == ArcadeStage::ANNOUNCE && audio && !browserAudio) audio->bossIntro();
       if (game.stage == ArcadeStage::RESULT) {
         setCue(VisualCue::WINNER);
-        if (audio) {
+        if (audio && !browserAudio) {
           if (game.newDeviceRecord || game.raiderNewRecord) audio->newRecord();
           else if (game.winner >= 0) audio->winner();
           else audio->defeat();
         }
       }
-      if (game.stage == ArcadeStage::BOSS_RESULT && audio) {
+      if (game.stage == ArcadeStage::BOSS_RESULT && audio && !browserAudio) {
         if (game.bossDefeated) audio->bossDefeated(); else audio->winner();
       }
-      if (game.stage == ArcadeStage::LOBBY && (old == ArcadeStage::RESULT || old == ArcadeStage::BOSS_RESULT) && audio) audio->restart();
+      if (game.stage == ArcadeStage::LOBBY && (old == ArcadeStage::RESULT || old == ArcadeStage::BOSS_RESULT) && audio && !browserAudio) audio->restart();
     }
 
     previousWinner = game.winner;
