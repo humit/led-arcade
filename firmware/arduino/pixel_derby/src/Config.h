@@ -28,8 +28,8 @@ static const bool DISPLAY_LANGUAGE_TR = true;
 
 // 1D games
 static const uint16_t STRIP_HIT_ZONE_LEDS = 14;
-static const uint32_t STRIP_RALLY_STEP_START_MS = 90;
-static const uint32_t STRIP_RALLY_STEP_MIN_MS = 28;
+static const uint32_t STRIP_RALLY_STEP_START_MS = 36;
+static const uint32_t STRIP_RALLY_STEP_MIN_MS = 14;
 static const uint32_t STRIP_PUSH_DURATION_MS = 20000;
 static const uint32_t STRIP_PUSH_TAP_DEBOUNCE_MS = 120;
 static const uint32_t STRIP_CPU_PUSH_MIN_MS = 185;

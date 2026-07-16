@@ -11,9 +11,10 @@
 class MatrixRenderer {
 public:
   CRGB leds[LED_COUNT];
-  void begin(){FastLED.addLeds<LED_TYPE,LED_PIN,COLOR_ORDER>(leds,LED_COUNT);FastLED.setBrightness(LED_BRIGHTNESS);FastLED.clear(true);}
+  void begin(){FastLED.addLeds<LED_TYPE,LED_PIN,COLOR_ORDER>(leds,LED_COUNT);FastLED.setBrightness(LED_BRIGHTNESS);clearPixels();FastLED.show();}
+  void clearPixels(){fill_solid(leds,LED_COUNT,CRGB::Black);}
   void render(const PlayerManager& players, PixelDerbyGame& game, const ArcadeDirector& director){
-    FastLED.clear();
+    clearPixels();
     if (drawPresentationCue(game, director)) { FastLED.show(); return; }
     switch(game.stage){
       case ArcadeStage::PLATFORM_SELECT: drawPlatformSelect(); break;
