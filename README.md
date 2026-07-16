@@ -1,79 +1,57 @@
 # LED Arcade Platform
 
-ESP32-based physical LED arcade platform.
+ESP32-based physical LED arcade platform using phone controllers over a captive-portal Wi-Fi AP and WebSocket input.
 
-Current MVP game: **Color Rally**.
+## Current arena baseline
 
-## Current hardware baseline
-
+- **8×32 matrix:** Pixel Derby, Tron Arena, Pixel Raider, Color Clash, Pixel Pong
+- **1D strip:** Reflex Rally, Power Push
 - Board: WEMOS LOLIN32 Lite / ESP32
-- LED DIN: GPIO23
-- Audio output: GPIO22 → PAM8403 L-IN
-- LED count: 200
-- Network: open AP captive portal
-- AP SSID: `LED-Arcade`
+- Matrix DIN: GPIO23
+- 1D strip DIN: GPIO22
+- Audio: GPIO25 → PAM8403 L-IN
+- AP SSID: `! OYUNA KATIL !`
 - AP IP: `10.10.10.10`
 
 ## Build
 
 ```bash
-cd /Users/uezerce/src/led-arcade-platform
-./tools/compile_color_rally.sh
+cd /Users/uezerce/src/led-arcade
+./tools/arcade compile
 ```
 
-## Upload
+Default FQBN:
+
+```text
+esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200
+```
+
+## Upload and monitor
 
 ```bash
-./tools/upload_color_rally.sh
+./tools/arcade deploy /dev/cu.usbserial-XXXX
 ```
 
-## Current UX target
-
-User can join by either:
-
-1. Scanning the WiFi QR code, or
-2. Opening WiFi settings and tapping `LED-Arcade`.
-
-QR payload:
+## Runtime flow
 
 ```text
-WIFI:T:nopass;S:LED-Arcade;;
+platform selector → arena-specific game selector → lobby → countdown → game → result
 ```
 
-## Firmware layout
+A single human player receives an automatic CPU opponent in multiplayer games that support solo entry. Realtime controller traffic uses WebSocket port 81; HTTP serves the captive portal only.
+
+## Pixel Pong
+
+Pixel Pong is the first 8×32 game added after the 1D arena baseline. It supports one human vs CPU or two humans, uses upper/lower phone controls, accelerates during rallies, and ends at five points.
+
+Implementation and hardware test plan:
 
 ```text
-firmware/arduino/color_rally/
-  color_rally.ino
-  src/
-    Config.h
-    Types.h
-    SystemState.h
-    hardware/
-      AudioOut.h
-      LedRenderer.h
-    net/
-      CaptivePortal.h
-    controller/
-      ControllerPage.h
-    session/
-      SessionManager.h
-    games/color_rally/
-      ColorRallyGame.h
-```
-## Arduino CLI workflow
-
-Development compile/upload workflow is documented in:
-
-```text
-docs/ARDUINO_CLI_SETUP.md
+docs/GAME_PIXEL_PONG.md
 ```
 
-Common commands:
+## Arduino CLI setup
 
 ```bash
 ./tools/setup_arduino_cli_macos.sh
-./tools/compile_color_rally.sh
-./tools/upload_color_rally.sh
 ```
-

@@ -1,0 +1,25 @@
+.PHONY: doctor ports compile clean-compile upload deploy monitor clean
+
+doctor:
+	./tools/arcade doctor
+
+ports:
+	./tools/arcade ports
+
+compile:
+	./tools/arcade compile
+
+clean-compile:
+	./tools/arcade compile --clean
+
+upload:
+	./tools/arcade upload
+
+deploy:
+	./tools/arcade deploy
+
+monitor:
+	./tools/arcade monitor
+
+clean:
+	./tools/arcade clean
