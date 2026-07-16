@@ -35,6 +35,22 @@ static const uint32_t STRIP_PUSH_TAP_DEBOUNCE_MS = 120;
 static const uint32_t STRIP_CPU_PUSH_MIN_MS = 185;
 static const uint32_t STRIP_CPU_PUSH_MAX_MS = 310;
 
+// Screen Arcade
+static const uint8_t SCREEN_ARCADE_PLAYER_COUNT = 3;
+static const uint8_t TAP_CLASH_GRID_CELLS = 9;
+static const uint32_t TAP_CLASH_DURATION_MS = 30000;
+static const uint32_t TAP_CLASH_FIRST_TARGET_DELAY_MS = 350;
+static const uint32_t TAP_CLASH_TARGET_MIN_MS = 850;
+static const uint32_t TAP_CLASH_TARGET_MAX_MS = 1250;
+static const uint32_t TAP_CLASH_GAP_MIN_MS = 180;
+static const uint32_t TAP_CLASH_GAP_MAX_MS = 360;
+static const uint32_t TAP_CLASH_INPUT_DEBOUNCE_MS = 80;
+static const uint32_t TAP_CLASH_WRONG_LOCK_MS = 650;
+static const uint32_t TAP_CLASH_CPU_MIN_MS = 430;
+static const uint32_t TAP_CLASH_CPU_MAX_MS = 920;
+static const uint8_t TAP_CLASH_POINTS_PER_TARGET = 10;
+static const uint8_t TAP_CLASH_WIN_BONUS_POINTS = 50;
+
 // Audio
 #define AUDIO_PIN 25
 #define AUDIO_RES_BITS 8

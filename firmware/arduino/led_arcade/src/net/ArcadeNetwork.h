@@ -275,6 +275,26 @@ private:
     return separator < 0 ? "" : message.substring(separator + 1);
   }
 
+  bool parseTapClashInput(
+      const String& message,
+      uint32_t& targetId,
+      uint8_t& cell
+  ) {
+    const int first = message.indexOf('|');
+    const int second = message.indexOf('|', first + 1);
+    if (first < 0 || second < 0) return false;
+
+    const String targetPart = message.substring(first + 1, second);
+    const String cellPart = message.substring(second + 1);
+    if (targetPart.length() == 0 || cellPart.length() == 0) return false;
+
+    const long parsedCell = cellPart.toInt();
+    if (parsedCell < 0 || parsedCell >= TAP_CLASH_GRID_CELLS) return false;
+    targetId = strtoul(targetPart.c_str(), nullptr, 10);
+    cell = uint8_t(parsedCell);
+    return true;
+  }
+
   void handleWsMessage(
       uint32_t client,
       const IPAddress& remoteIp,
@@ -287,7 +307,7 @@ private:
           remoteIp,
           millis()
       );
-      if (slot >= 0) audio->playerJoined();
+      if (slot >= 0 && game->selectedArena != ArenaType::SCREEN_ARCADE) audio->playerJoined();
       sendState(client);
       broadcastState();
       return;
@@ -316,6 +336,7 @@ private:
 
     if (message == "SELECT_PLATFORM|matrix_8x32") game->selectPlatform(ArenaType::MATRIX_8X32);
     else if (message == "SELECT_PLATFORM|strip_1d") game->selectPlatform(ArenaType::STRIP_1D);
+    else if (message == "SELECT_PLATFORM|screen_arcade") game->selectPlatform(ArenaType::SCREEN_ARCADE);
     else if (message == "SELECT_GAME|pixel_derby") game->selectGame(GameId::PIXEL_DERBY, *players);
     else if (message == "SELECT_GAME|tron_arena") game->selectGame(GameId::TRON_ARENA, *players);
     else if (message == "SELECT_GAME|pixel_raider") game->selectGame(GameId::PIXEL_RAIDER, *players);
@@ -323,9 +344,17 @@ private:
     else if (message == "SELECT_GAME|pixel_pong") game->selectGame(GameId::PIXEL_PONG, *players);
     else if (message == "SELECT_GAME|reflex_rally") game->selectGame(GameId::REFLEX_RALLY, *players);
     else if (message == "SELECT_GAME|power_push") game->selectGame(GameId::POWER_PUSH, *players);
+    else if (message == "SELECT_GAME|tap_clash") game->selectGame(GameId::TAP_CLASH, *players);
     else if (message.startsWith("READY|")) game->setReady(slot, commandArg(message) == "1", *players, *audio);
     else if (message == "START") game->start(slot, *players, *audio);
     else if (message == "TAP") game->tap(slot, *players, *audio);
+    else if (message.startsWith("TAP_CLASH|")) {
+      uint32_t targetId = 0;
+      uint8_t cell = 0;
+      if (parseTapClashInput(message, targetId, cell)) {
+        game->tapClashCell(slot, targetId, cell, *players);
+      }
+    }
     else if (message == "TURN_LEFT") game->turn(slot, true, *players);
     else if (message == "TURN_RIGHT") game->turn(slot, false, *players);
     else if (message == "MOVE_UP") game->raiderMove(slot, -1, *players, *audio);
@@ -354,7 +383,7 @@ private:
 
     const int you = players->findByClient(client);
     String json;
-    json.reserve(2200);
+    json.reserve(2600);
     json = "{\"stage\":\"";
     json += stageName(game->stage);
     json += "\",\"arena\":\"" + String(arenaName(game->selectedArena)) + "\"";
@@ -367,6 +396,14 @@ private:
     json += ",\"countdown\":" + String(game->countdownValue);
     json += ",\"winner\":" + String(game->winner);
     json += ",\"matchWinScore\":" + String(MATCH_WIN_SCORE);
+    json += ",\"screenTargetPlayers\":" + String(SCREEN_ARCADE_PLAYER_COUNT);
+    json += ",\"tapClashTarget\":" + String(game->tapClash.targetCell == TapClashGame::NO_CELL ? -1 : int(game->tapClash.targetCell));
+    json += ",\"tapClashTargetId\":" + String(game->tapClash.targetId);
+    json += ",\"tapClashRemainingMs\":" + String(game->tapClashRemainingMs());
+    json += ",\"tapClashTargetRemainingMs\":" + String(game->tapClashTargetRemainingMs());
+    json += ",\"tapClashEventId\":" + String(game->tapClash.eventId);
+    json += ",\"tapClashEventType\":" + String(game->tapClash.eventType);
+    json += ",\"tapClashEventSlot\":" + String(game->tapClash.eventSlot);
     json += ",\"deviceBestMs\":" + String(game->deviceBestRaceMs);
     json += ",\"newDeviceRecord\":" + String(game->newDeviceRecord ? "true" : "false");
     json += ",\"racesSinceBoss\":" + String(game->racesSinceBoss);
@@ -421,6 +458,7 @@ private:
       json += ",\"bossCandidateScore\":" + String(p.bossCandidateScore);
       json += ",\"bossEnergy\":" + String(p.bossEnergy);
       json += ",\"stunnedMs\":" + String(game->stunRemainingMs(p));
+      json += ",\"tapClashLockedMs\":" + String(game->tapClashLockRemainingMs(i));
       json += ",\"tronX\":" + String(p.tronX);
       json += ",\"tronY\":" + String(p.tronY);
       json += ",\"tronAlive\":" + String(p.tronAlive ? "true" : "false");

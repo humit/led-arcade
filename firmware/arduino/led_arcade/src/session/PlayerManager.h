@@ -44,6 +44,9 @@ public:
     int slot = findByCid(cid);
     if (slot < 0) slot = findByIp(remoteIp);
     if (slot < 0) slot = findReusableDisconnectedSlot();
+    // Human players take over automatic CPU slots before consuming a new slot.
+    // This keeps the visible Screen Arcade colors stable as players join.
+    if (slot < 0) slot = cpuSlot();
     if (slot < 0) {
       for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
         if (!players[i].occupied) {
@@ -57,6 +60,7 @@ public:
     if (slot < 0) return -1;
 
     PlayerSlot& player = players[slot];
+    if (player.isCpu) player = PlayerSlot();
     player.occupied = true;
     player.connected = true;
     player.wsClient = client;
@@ -113,11 +117,29 @@ public:
     return -1;
   }
 
+  uint8_t cpuCount() const {
+    uint8_t count = 0;
+    for (const auto& player : players) {
+      if (player.occupied && player.isCpu) count++;
+    }
+    return count;
+  }
+
   bool removeAutomaticCpu() {
     const int slot = cpuSlot();
     if (slot < 0) return false;
     players[slot] = PlayerSlot();
     return true;
+  }
+
+  bool removeAutomaticCpus() {
+    bool changed = false;
+    for (auto& player : players) {
+      if (!player.occupied || !player.isCpu) continue;
+      player = PlayerSlot();
+      changed = true;
+    }
+    return changed;
   }
 
   uint8_t humanActiveCount() const {
@@ -128,40 +150,63 @@ public:
     return count;
   }
 
-  bool ensureAutomaticCpu() {
-    const uint8_t humans = humanActiveCount();
-    const int existing = cpuSlot();
+  bool ensureAutomaticCpuCount(uint8_t desiredCount) {
+    if (desiredCount > MAX_PLAYERS) desiredCount = MAX_PLAYERS;
+    bool changed = false;
+    uint8_t existingCount = cpuCount();
+    const uint32_t now = millis();
 
-    if (humans == 1 && existing >= 0) {
-      PlayerSlot& cpu = players[existing];
-      bool changed = !cpu.connected || cpu.waiting || !cpu.ready;
-      cpu.connected = true;
-      cpu.waiting = false;
-      cpu.ready = true;
-      cpu.lastSeenMs = millis();
-      return changed;
+    for (auto& player : players) {
+      if (!player.occupied || !player.isCpu) continue;
+      if (!player.connected || player.waiting || !player.ready) changed = true;
+      player.connected = true;
+      player.waiting = false;
+      player.ready = true;
+      player.lastSeenMs = now;
     }
 
-    if (humans == 1 && existing < 0) {
-      for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
-        if (players[i].occupied) continue;
-        PlayerSlot cpu;
-        cpu.occupied = true;
-        cpu.connected = true;
-        cpu.isCpu = true;
-        cpu.ready = true;
-        cpu.cid = "cpu";
-        cpu.lastSeenMs = millis();
-        players[i] = cpu;
-        return true;
+    for (int slot = MAX_PLAYERS - 1; slot >= 0 && existingCount > desiredCount; slot--) {
+      if (!players[slot].occupied || !players[slot].isCpu) continue;
+      players[slot] = PlayerSlot();
+      existingCount--;
+      changed = true;
+    }
+
+    while (existingCount < desiredCount) {
+      int freeSlot = -1;
+      for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
+        if (!players[slot].occupied) {
+          freeSlot = slot;
+          break;
+        }
       }
+      if (freeSlot < 0) break;
+
+      PlayerSlot cpu;
+      cpu.occupied = true;
+      cpu.connected = true;
+      cpu.isCpu = true;
+      cpu.ready = true;
+      cpu.cid = "cpu-" + String(existingCount + 1);
+      cpu.lastSeenMs = now;
+      players[freeSlot] = cpu;
+      existingCount++;
+      changed = true;
     }
 
-    if (humans != 1 && existing >= 0) {
-      players[existing] = PlayerSlot();
-      return true;
-    }
-    return false;
+    return changed;
+  }
+
+  bool ensureAutomaticCpu() {
+    return ensureAutomaticCpuCount(humanActiveCount() == 1 ? 1 : 0);
+  }
+
+  bool ensureScreenArcadeCpus() {
+    const uint8_t humans = humanActiveCount();
+    const uint8_t desired = humans == 0 || humans >= SCREEN_ARCADE_PLAYER_COUNT
+        ? 0
+        : SCREEN_ARCADE_PLAYER_COUNT - humans;
+    return ensureAutomaticCpuCount(desired);
   }
 
   uint8_t connectedCount() const {
