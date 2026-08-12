@@ -4,7 +4,7 @@ ESP32-based physical LED arcade platform using phone controllers over a captive-
 
 ## Current arena baseline
 
-- **8×32 matrix:** Pixel Derby, Tron Arena, Pixel Raider, Color Clash, Pixel Pong
+- **8×32 matrix:** Pixel Derby, Tron Arena, Pixel Raider, Color Clash, Pixel Pong, Stack Shift
 - **1D strip:** Reflex Rally, Power Push
 - Board: WEMOS LOLIN32 Lite / ESP32
 - Matrix DIN: GPIO23
@@ -48,6 +48,16 @@ Implementation and hardware test plan:
 
 ```text
 docs/GAME_PIXEL_PONG.md
+```
+
+## Stack Shift
+
+Stack Shift is a portrait-oriented 8×32 falling-block game. It uses tap to rotate, horizontal swipes to move, a downward swipe for hard drop, and hold or slow downward drag for soft drop. The game uses a seven-piece bag, colored locked blocks, line clears, level-based acceleration, score tracking, and a device best score.
+
+Implementation and hardware test plan:
+
+```text
+docs/GAME_STACK_SHIFT.md
 ```
 
 ## Arduino CLI setup
