@@ -11,3 +11,6 @@ build/
 
 # Local Arduino CLI build artifacts
 .build/
+
+# Local credentials and certificates
+secrets/
