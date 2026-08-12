@@ -382,33 +382,24 @@ private:
     else if (message == "SELECT_GAME|pixel_raider") game->selectGame(GameId::PIXEL_RAIDER, *players);
     else if (message == "SELECT_GAME|color_clash") game->selectGame(GameId::COLOR_CLASH, *players);
     else if (message == "SELECT_GAME|pixel_pong") game->selectGame(GameId::PIXEL_PONG, *players);
+    else if (message == "SELECT_GAME|stack_shift") game->selectGame(GameId::STACK_SHIFT, *players);
     else if (message == "SELECT_GAME|reflex_rally") game->selectGame(GameId::REFLEX_RALLY, *players);
     else if (message == "SELECT_GAME|power_push") game->selectGame(GameId::POWER_PUSH, *players);
-    else if (message == "SELECT_GAME|tap_clash") game->selectGame(GameId::TAP_CLASH, *players);
-    else if (message == "SELECT_GAME|brain_duel") game->selectGame(GameId::BRAIN_DUEL, *players);
     else if (message.startsWith("READY|")) game->setReady(slot, commandArg(message) == "1", *players, *audio);
     else if (message == "START") game->start(slot, *players, *audio);
     else if (message == "TAP") game->tap(slot, *players, *audio);
-    else if (message.startsWith("TAP_CLASH|")) {
-      uint32_t targetId = 0;
-      uint8_t cell = 0;
-      if (parseTapClashInput(message, targetId, cell)) {
-        game->tapClashCell(slot, targetId, cell, *players);
-      }
-    }
-    else if (message.startsWith("BRAIN_ANSWER|")) {
-      uint32_t questionId = 0;
-      uint8_t answerIndex = 0;
-      if (parseBrainDuelInput(message, questionId, answerIndex)) {
-        game->brainDuelAnswer(slot, questionId, answerIndex, *players);
-      }
-    }
     else if (message == "TURN_LEFT") game->turn(slot, true, *players);
     else if (message == "TURN_RIGHT") game->turn(slot, false, *players);
     else if (message == "MOVE_UP") game->raiderMove(slot, -1, *players, *audio);
     else if (message == "MOVE_DOWN") game->raiderMove(slot, 1, *players, *audio);
     else if (message == "PONG_UP") game->pongMove(slot, -1, *players);
     else if (message == "PONG_DOWN") game->pongMove(slot, 1, *players);
+    else if (message == "STACK_LEFT") game->stackInput(slot, StackShiftInput::LEFT, *players, *audio);
+    else if (message == "STACK_RIGHT") game->stackInput(slot, StackShiftInput::RIGHT, *players, *audio);
+    else if (message == "STACK_ROTATE") game->stackInput(slot, StackShiftInput::ROTATE, *players, *audio);
+    else if (message == "STACK_SOFT_DROP") game->stackInput(slot, StackShiftInput::SOFT_DROP, *players, *audio);
+    else if (message == "STACK_HARD_DROP") game->stackInput(slot, StackShiftInput::HARD_DROP, *players, *audio);
+    else if (message == "STACK_PAUSE") game->stackPause(slot, *players, *audio);
     else if (message == "CLASH_UP") game->clashMove(slot, TronDirection::UP, *players);
     else if (message == "CLASH_RIGHT") game->clashMove(slot, TronDirection::RIGHT, *players);
     else if (message == "CLASH_DOWN") game->clashMove(slot, TronDirection::DOWN, *players);
@@ -431,7 +422,7 @@ private:
 
     const int you = players->findByClient(client);
     String json;
-    json.reserve(4400);
+    json.reserve(5200);
     json = "{\"stage\":\"";
     json += stageName(game->stage);
     json += "\",\"arena\":\"" + String(arenaName(game->selectedArena)) + "\"";
@@ -501,6 +492,27 @@ private:
     json += ",\"pongLeftScore\":" + String(game->pong.leftScore);
     json += ",\"pongRightScore\":" + String(game->pong.rightScore);
     json += ",\"pongPointPause\":" + String(game->pong.pointPause ? "true" : "false");
+    json += ",\"stackScore\":" + String(game->stack.score);
+    json += ",\"stackBestScore\":" + String(game->stack.bestScore);
+    json += ",\"stackLines\":" + String(game->stack.clearedLines);
+    json += ",\"stackLevel\":" + String(game->stack.level);
+    json += ",\"stackNextPiece\":" + String(game->stack.nextPiece);
+    json += ",\"stackPaused\":" + String(game->stack.paused ? "true" : "false");
+    json += ",\"stackClearActive\":" + String(game->stack.lineClearActive ? "true" : "false");
+    json += ",\"stackClearCount\":" + String(game->stack.lineClearCount);
+    json += ",\"stackNewRecord\":" + String(game->stack.newRecord ? "true" : "false");
+    json += ",\"stackGhostPieces\":" + String(game->stack.ghostPiecesRemaining);
+    json += ",\"stackGhostAward\":" + String(game->stack.ghostAwardPieces);
+    json += ",\"stackClearStreak\":" + String(game->stack.lineClearStreak);
+    json += ",\"stackLevelBreak\":" + String(game->stack.levelBreakActive ? "true" : "false");
+    json += ",\"stackLevelIntro\":" + String(game->stack.levelBreakIntroActive(millis()) ? "true" : "false");
+    json += ",\"stackLevelBonus\":" + String(game->stack.levelBreakBonus);
+    json += ",\"stackLevelEmptyRows\":" + String(game->stack.levelBreakEmptyRows);
+    json += ",\"stackLevelScannedRows\":" + String(game->stack.levelBreakScannedRows(millis()));
+    json += ",\"stackLevelScannedBonus\":" + String(game->stack.levelBreakScannedBonus(millis()));
+    json += ",\"stackPerfectClear\":" + String(game->stack.perfectClearActive ? "true" : "false");
+    json += ",\"stackPerfectClearBonus\":" + String(game->stack.perfectClearBonus);
+    json += ",\"stackPerfectClearGhostAward\":" + String(game->stack.perfectClearGhostAward);
     json += ",\"clashCounts\":[";
     for (uint8_t i = 0; i < MAX_PLAYERS; i++) {
       if (i) json += ',';
