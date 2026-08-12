@@ -19,6 +19,11 @@ enum class SoundId : uint8_t {
   READY,
   PONG_HIT,
   PONG_SCORE,
+  STACK_SINGLE,
+  STACK_DOUBLE,
+  STACK_TRIPLE,
+  STACK_TETRIS,
+  STACK_PERFECT_CLEAR,
   ATTRACT_CHIME,
   DEMO_CUE,
   INVITE_CUE
@@ -52,6 +57,11 @@ static const ToneStep S_PLAYER_JOINED[] = {{660,24,7,7},{880,32,0,8}};
 static const ToneStep S_READY[] = {{980,28,0,7}};
 static const ToneStep S_PONG_HIT[] = {{760,18,0,6}};
 static const ToneStep S_PONG_SCORE[] = {{392,32,5,7},{784,62,0,9}};
+static const ToneStep S_STACK_SINGLE[] = {{659,34,0,8}};
+static const ToneStep S_STACK_DOUBLE[] = {{523,28,5,8},{784,52,0,9}};
+static const ToneStep S_STACK_TRIPLE[] = {{523,24,4,8},{659,24,4,9},{988,60,0,10}};
+static const ToneStep S_STACK_TETRIS[] = {{523,22,4,8},{659,22,4,9},{784,28,4,9},{1047,42,5,10},{1319,90,0,10}};
+static const ToneStep S_STACK_PERFECT_CLEAR[] = {{523,20,4,8},{659,20,4,9},{784,22,4,9},{1047,30,4,10},{1319,42,5,10},{1568,55,5,10},{2093,120,0,10}};
 static const ToneStep S_ATTRACT_CHIME[] = {{392,42,10,7},{523,42,10,8},{659,75,0,8}};
 static const ToneStep S_DEMO_CUE[] = {{262,36,7,7},{392,36,7,8},{523,54,0,8}};
 static const ToneStep S_INVITE_CUE[] = {{784,55,25,8},{988,80,0,9}};
@@ -74,6 +84,11 @@ inline SoundPattern soundPattern(SoundId id) {
     case SoundId::READY: return {S_READY,1};
     case SoundId::PONG_HIT: return {S_PONG_HIT,1};
     case SoundId::PONG_SCORE: return {S_PONG_SCORE,2};
+    case SoundId::STACK_SINGLE: return {S_STACK_SINGLE,1};
+    case SoundId::STACK_DOUBLE: return {S_STACK_DOUBLE,2};
+    case SoundId::STACK_TRIPLE: return {S_STACK_TRIPLE,3};
+    case SoundId::STACK_TETRIS: return {S_STACK_TETRIS,5};
+    case SoundId::STACK_PERFECT_CLEAR: return {S_STACK_PERFECT_CLEAR,7};
     case SoundId::ATTRACT_CHIME: return {S_ATTRACT_CHIME,3};
     case SoundId::DEMO_CUE: return {S_DEMO_CUE,3};
     case SoundId::INVITE_CUE: return {S_INVITE_CUE,2};
