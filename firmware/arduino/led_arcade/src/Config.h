@@ -66,6 +66,19 @@ static const uint8_t BRAIN_DUEL_WIN_BONUS_POINTS = 40;
 #define AUDIO_RES_BITS 8
 #define AUDIO_DUTY 10
 
+// Idle attract audio. Visual attract phases continue normally, but sound is
+// intentionally sparse so an unattended installation does not become noisy.
+static const uint32_t ATTRACT_AUDIO_INITIAL_DELAY_MS = 20000;
+static const uint32_t ATTRACT_AUDIO_INTERVAL_MS = 180000;
+
+// Idle attract playlist. Each scene is long enough to read as a tiny game
+// session rather than a rapidly changing decorative animation.
+static const uint32_t ATTRACT_PAC_CHASE_MS = 14000;
+static const uint32_t ATTRACT_PONG_CPU_MS = 16000;
+static const uint32_t ATTRACT_STACK_CPU_MS = 18000;
+static const uint32_t ATTRACT_RAIDER_CPU_MS = 16000;
+static const uint32_t ATTRACT_JOIN_MS = 8000;
+
 // Session/game tuning
 static const uint8_t MAX_PLAYERS = 8;
 static const uint8_t FINISH_X = MATRIX_WIDTH - 1;
@@ -124,6 +137,36 @@ static const uint32_t PONG_INPUT_DEBOUNCE_MS = 65;
 static const uint32_t PONG_CPU_MOVE_MIN_MS = 90;
 static const uint32_t PONG_CPU_MOVE_MAX_MS = 150;
 static const uint8_t PONG_CPU_SKIP_PERCENT = 12;
+
+// Stack Shift (vertical 8x32 falling-block game)
+static const uint8_t STACK_WIDTH = 8;
+static const uint8_t STACK_HEIGHT = 32;
+static const bool STACK_ROTATE_CLOCKWISE = true;
+static const uint32_t STACK_FALL_START_MS = 650;
+static const uint32_t STACK_FALL_MIN_MS = 110;
+static const uint8_t STACK_LEVEL_LINES = 5;
+static const uint32_t STACK_SPEEDUP_MS = 55;
+static const uint32_t STACK_INPUT_DEBOUNCE_MS = 45;
+static const uint32_t STACK_PAUSE_DEBOUNCE_MS = 250;
+static const uint32_t STACK_LINE_CLEAR_FLASH_MS = 90;
+static const uint8_t STACK_LINE_CLEAR_FLASH_PHASES = 4;
+static const uint32_t STACK_LINE_CLEAR_DURATION_MS =
+    STACK_LINE_CLEAR_FLASH_MS * STACK_LINE_CLEAR_FLASH_PHASES;
+static const uint8_t STACK_GHOST_START_PIECES = 10;
+static const uint8_t STACK_GHOST_TETRIS_REWARD = 8;
+static const uint8_t STACK_GHOST_STREAK_THRESHOLD = 3;
+static const uint8_t STACK_GHOST_STREAK_REWARD = 5;
+static const uint8_t STACK_GHOST_MAX_PIECES = 24;
+static const uint8_t STACK_BLACK_CLAMP_MAX = 32;
+static const uint8_t STACK_PLAYFIELD_BLACK_CLAMP_MAX = 180;
+static const uint16_t STACK_LEVEL_EMPTY_ROW_POINTS = 25;
+static const uint32_t STACK_LEVEL_INTRO_MS = 1050;
+static const uint32_t STACK_LEVEL_SCAN_LEAD_MS = 180;
+static const uint32_t STACK_LEVEL_SCAN_ROW_MS = 85;
+static const uint32_t STACK_LEVEL_SCAN_HOLD_MS = 720;
+static const uint16_t STACK_PERFECT_CLEAR_POINTS = 2500;
+static const uint8_t STACK_PERFECT_CLEAR_GHOST_REWARD = 12;
+static const uint32_t STACK_PERFECT_CLEAR_MS = 2200;
 
 // Color Clash
 static const uint8_t CLASH_MIN_PLAYERS = 2;
