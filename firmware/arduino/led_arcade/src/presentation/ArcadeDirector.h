@@ -15,17 +15,17 @@ public:
     PAINT,
     PONG,
     WINNER,
-    ATTRACT_CHOMPER,
-    ATTRACT_DERBY_DEMO,
-    ATTRACT_RAIDER_DEMO,
-    ATTRACT_PAINT_DEMO,
+    ATTRACT_PAC_CHASE,
+    ATTRACT_PONG_CPU,
+    ATTRACT_STACK_CPU,
+    ATTRACT_RAIDER_CPU,
     ATTRACT_JOIN
   };
 
   void begin(AudioOut& audioRef) {
     audio = &audioRef;
     cueStartedMs = millis();
-    attractStartedMs = cueStartedMs;
+    nextAttractAudioMs = cueStartedMs + ATTRACT_AUDIO_INITIAL_DELAY_MS;
   }
 
   void update(const ArcadeGameEngine& game, const PlayerManager& players) {
@@ -51,7 +51,6 @@ public:
   bool isAttractRunning() const { return attractRunning; }
 
 private:
-  static constexpr uint32_t ATTRACT_PHASE_MS = 7000;
   static constexpr uint8_t ATTRACT_PHASE_COUNT = 5;
 
   AudioOut* audio = nullptr;
@@ -62,7 +61,9 @@ private:
   bool initialized = false;
   bool attractRunning = false;
   uint8_t attractPhase = 255;
-  uint32_t attractStartedMs = 0;
+  uint32_t attractPhaseStartedMs = 0;
+  uint32_t nextAttractAudioMs = 0;
+  uint8_t attractAudioCue = 0;
   VisualCue activeCue = VisualCue::MENU_ATTRACT;
   uint32_t cueStartedMs = 0;
 
@@ -70,36 +71,64 @@ private:
     const uint32_t now = millis();
     if (!attractRunning) {
       attractRunning = true;
-      attractStartedMs = now;
       attractPhase = 255;
+      attractPhaseStartedMs = now;
+      attractAudioCue = 0;
+      nextAttractAudioMs = now + ATTRACT_AUDIO_INITIAL_DELAY_MS;
     }
 
-    const uint8_t phase = uint8_t(((now - attractStartedMs) / ATTRACT_PHASE_MS) % ATTRACT_PHASE_COUNT);
-    if (phase == attractPhase) return;
-    attractPhase = phase;
+    if (attractPhase == 255 || now - attractPhaseStartedMs >= attractPhaseDurationMs(attractPhase)) {
+      attractPhase = attractPhase == 255 ? 0 : uint8_t((attractPhase + 1) % ATTRACT_PHASE_COUNT);
+      attractPhaseStartedMs = now;
+      switch (attractPhase) {
+        case 0:
+          setCue(VisualCue::ATTRACT_PAC_CHASE);
+          break;
+        case 1:
+          setCue(VisualCue::ATTRACT_PONG_CPU);
+          break;
+        case 2:
+          setCue(VisualCue::ATTRACT_STACK_CPU);
+          break;
+        case 3:
+          setCue(VisualCue::ATTRACT_RAIDER_CPU);
+          break;
+        default:
+          setCue(VisualCue::ATTRACT_JOIN);
+          break;
+      }
+    }
 
+    maybePlayAttractAudio(now);
+  }
+
+  uint32_t attractPhaseDurationMs(uint8_t phase) const {
     switch (phase) {
+      case 0: return ATTRACT_PAC_CHASE_MS;
+      case 1: return ATTRACT_PONG_CPU_MS;
+      case 2: return ATTRACT_STACK_CPU_MS;
+      case 3: return ATTRACT_RAIDER_CPU_MS;
+      default: return ATTRACT_JOIN_MS;
+    }
+  }
+
+  void maybePlayAttractAudio(uint32_t now) {
+    if (!audio || int32_t(now - nextAttractAudioMs) < 0) return;
+
+    switch (attractAudioCue % 3) {
       case 0:
-        setCue(VisualCue::ATTRACT_CHOMPER);
-        if (audio) audio->attractChime();
+        audio->attractChime();
         break;
       case 1:
-        setCue(VisualCue::ATTRACT_DERBY_DEMO);
-        if (audio) audio->demoCue();
-        break;
-      case 2:
-        setCue(VisualCue::ATTRACT_RAIDER_DEMO);
-        if (audio) audio->demoCue();
-        break;
-      case 3:
-        setCue(VisualCue::ATTRACT_PAINT_DEMO);
-        if (audio) audio->demoCue();
+        audio->inviteCue();
         break;
       default:
-        setCue(VisualCue::ATTRACT_JOIN);
-        if (audio) audio->inviteCue();
+        audio->demoCue();
         break;
     }
+
+    attractAudioCue++;
+    nextAttractAudioMs = now + ATTRACT_AUDIO_INTERVAL_MS;
   }
 
   void updateGameCues(const ArcadeGameEngine& game) {
@@ -108,7 +137,7 @@ private:
       previousStage = game.stage;
       previousGame = game.selectedGame;
       previousWinner = game.winner;
-      previousRecord = game.newDeviceRecord || game.raiderNewRecord;
+      previousRecord = game.newDeviceRecord || game.raiderNewRecord || game.stack.newRecord;
       initialized = true;
       return;
     }
@@ -126,24 +155,24 @@ private:
       const ArcadeStage old = previousStage;
       previousStage = game.stage;
       if (game.stage == ArcadeStage::PLATFORM_SELECT || game.stage == ArcadeStage::GAME_SELECT) setCue(VisualCue::MENU_ATTRACT);
-      if (game.stage == ArcadeStage::COUNTDOWN && old != ArcadeStage::ANNOUNCE && audio && !browserAudio) audio->gameStart();
-      if (game.stage == ArcadeStage::ANNOUNCE && audio && !browserAudio) audio->bossIntro();
+      if (game.stage == ArcadeStage::COUNTDOWN && old != ArcadeStage::ANNOUNCE && audio) audio->gameStart();
+      if (game.stage == ArcadeStage::ANNOUNCE && audio) audio->bossIntro();
       if (game.stage == ArcadeStage::RESULT) {
         setCue(VisualCue::WINNER);
         if (audio && !browserAudio) {
-          if (game.newDeviceRecord || game.raiderNewRecord) audio->newRecord();
+          if (game.newDeviceRecord || game.raiderNewRecord || game.stack.newRecord) audio->newRecord();
           else if (game.winner >= 0) audio->winner();
           else audio->defeat();
         }
       }
-      if (game.stage == ArcadeStage::BOSS_RESULT && audio && !browserAudio) {
+      if (game.stage == ArcadeStage::BOSS_RESULT && audio) {
         if (game.bossDefeated) audio->bossDefeated(); else audio->winner();
       }
-      if (game.stage == ArcadeStage::LOBBY && (old == ArcadeStage::RESULT || old == ArcadeStage::BOSS_RESULT) && audio && !browserAudio) audio->restart();
+      if (game.stage == ArcadeStage::LOBBY && (old == ArcadeStage::RESULT || old == ArcadeStage::BOSS_RESULT) && audio) audio->restart();
     }
 
     previousWinner = game.winner;
-    previousRecord = game.newDeviceRecord || game.raiderNewRecord;
+    previousRecord = game.newDeviceRecord || game.raiderNewRecord || game.stack.newRecord;
   }
 
   void setCue(VisualCue cue) {
