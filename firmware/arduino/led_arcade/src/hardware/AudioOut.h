@@ -55,6 +55,15 @@ public:
   void ready() { play(SoundId::READY); }
   void pongHit() { play(SoundId::PONG_HIT); }
   void pongScore() { play(SoundId::PONG_SCORE); }
+  void stackRotate() { play(SoundId::PONG_HIT); }
+  void stackLock() { play(SoundId::MENU_SELECT); }
+  void stackLine(uint8_t lines) {
+    if (lines >= 4) play(SoundId::STACK_TETRIS);
+    else if (lines == 3) play(SoundId::STACK_TRIPLE);
+    else if (lines == 2) play(SoundId::STACK_DOUBLE);
+    else play(SoundId::STACK_SINGLE);
+  }
+  void stackPerfectClear() { play(SoundId::STACK_PERFECT_CLEAR); }
   void countdown(uint8_t value) { play(value == 0 ? SoundId::GO : SoundId::COUNTDOWN); }
   void tap() {}
   void winner() { play(SoundId::WINNER); }
