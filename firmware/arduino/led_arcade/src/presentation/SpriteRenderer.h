@@ -25,4 +25,17 @@ public:
       }
     }
   }
+
+  static void drawRowsMirrored(void* ctx, SetPixel setter, int ox, int oy,
+                               const char* const* rows, uint8_t h, CRGB base) {
+    for (uint8_t y = 0; y < h; ++y) {
+      const char* row = rows[y];
+      const uint8_t width = strlen(row);
+      for (uint8_t x = 0; x < width; ++x) {
+        const char ch = row[width - 1 - x];
+        if (ch < '1' || ch > '3') continue;
+        setter(ctx, ox + x, oy + y, shade(base, uint8_t(ch - '0')));
+      }
+    }
+  }
 };
