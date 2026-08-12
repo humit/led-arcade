@@ -5,6 +5,7 @@
 #include "src/hardware/StripRenderer.h"
 #include "src/session/PlayerManager.h"
 #include "src/core/ArcadeGameEngine.h"
+#include "src/diagnostics/FieldDiagnostics.h"
 #include "src/net/ArcadeNetwork.h"
 #include "src/presentation/ArcadeDirector.h"
 
@@ -13,6 +14,7 @@ MatrixRenderer renderer;
 StripRenderer stripRenderer;
 PlayerManager players;
 ArcadeGameEngine game;
+FieldDiagnostics diagnostics;
 ArcadeNetwork network;
 ArcadeDirector director;
 
@@ -27,14 +29,16 @@ void setup() {
   Serial.println("Pixel Derby + Pixel Raider + Color Clash + Pixel Pong + Stack Shift");
   Serial.println("===================================");
 
+  diagnostics.begin();
   audio.begin();
   renderer.begin();
   stripRenderer.begin();
   director.begin(audio);
-  network.begin(players, game, audio);
+  network.begin(players, game, audio, diagnostics);
 }
 
 void loop() {
+  diagnostics.loop();
   network.loop();
   game.update(players, audio);
   director.update(game, players);
