@@ -5,6 +5,7 @@
 #include "../session/PlayerManager.h"
 #include "../hardware/AudioOut.h"
 #include "../games/pixel_pong/PixelPongGame.h"
+#include "../games/stack_shift/StackShiftGame.h"
 #include "../games/tap_clash/TapClashGame.h"
 #include "../games/brain_duel/BrainDuelGame.h"
 
@@ -69,6 +70,9 @@ public:
   // Pixel Pong state
   PixelPongGame pong;
 
+  // Stack Shift state
+  StackShiftGame stack;
+
   // Screen Arcade state
   TapClashGame tapClash;
   BrainDuelGame brainDuel;
@@ -101,6 +105,7 @@ public:
     bossSlot = -1;
     pendingBoss = false;
     pong.clear();
+    stack.clear();
     tapClash.clear();
     brainDuel.clear();
     stage = ArcadeStage::PLATFORM_SELECT;
@@ -114,6 +119,7 @@ public:
     bossSlot = -1;
     pendingBoss = false;
     pong.clear();
+    stack.clear();
     tapClash.clear();
     brainDuel.clear();
     stage = ArcadeStage::GAME_SELECT;
@@ -129,6 +135,7 @@ public:
     bossSlot = -1;
     previousBossSlot = -1;
     pong.clear();
+    stack.clear();
     tapClash.clear();
     brainDuel.clear();
     stage = ArcadeStage::LOBBY;
@@ -152,13 +159,13 @@ public:
   bool start(uint8_t requester, PlayerManager& players, AudioOut& audio) {
     if (stage != ArcadeStage::LOBBY) return false;
     if (requester >= MAX_PLAYERS || !players.players[requester].connected || players.players[requester].waiting) return false;
+    const bool soloGame = selectedGame == GameId::PIXEL_RAIDER || selectedGame == GameId::STACK_SHIFT;
     if (selectedGame == GameId::TAP_CLASH) players.ensureScreenArcadeCpus();
-    else if (selectedGame == GameId::BRAIN_DUEL) players.ensureAutomaticCpu();
-    else if (selectedGame != GameId::PIXEL_RAIDER) players.ensureAutomaticCpu();
+    else if (!soloGame) players.ensureAutomaticCpu();
     const uint8_t active = players.activeCount();
-    if (selectedGame == GameId::PIXEL_RAIDER) {
+    if (soloGame) {
       if (active != 1 || players.readyCount() != 1) return false;
-      players.removeAutomaticCpus();
+      players.removeAutomaticCpu();
     } else {
       if (!players.allConnectedReady()) return false;
     }
@@ -179,6 +186,7 @@ public:
     if (selectedGame == GameId::PIXEL_RAIDER) prepareRaider();
     if (selectedGame == GameId::COLOR_CLASH) prepareClash(players);
     if (selectedGame == GameId::PIXEL_PONG && !pong.prepare(players)) return false;
+    if (selectedGame == GameId::STACK_SHIFT && !stack.prepare(players)) return false;
     if (selectedGame == GameId::TAP_CLASH) tapClash.prepare(players);
     if (selectedGame == GameId::BRAIN_DUEL) brainDuel.prepare(players);
     if (selectedGame == GameId::REFLEX_RALLY || selectedGame == GameId::POWER_PUSH) prepareStripGame(players);
@@ -293,27 +301,32 @@ public:
     return pong.move(slot, delta, players);
   }
 
+  bool stackInput(uint8_t slot, StackShiftInput input, PlayerManager& players, AudioOut& audio) {
+    if (selectedGame != GameId::STACK_SHIFT || stage != ArcadeStage::RACING) return false;
+    return stack.input(slot, input, players, audio);
+  }
+
+  bool stackPause(uint8_t slot, PlayerManager& players, AudioOut& audio) {
+    if (selectedGame != GameId::STACK_SHIFT || stage != ArcadeStage::RACING) return false;
+    return stack.togglePause(slot, players, audio);
+  }
+
   bool rematch(uint8_t requester, PlayerManager& players) {
     if (requester >= MAX_PLAYERS || !players.players[requester].connected || players.players[requester].waiting) return false;
     if (stage == ArcadeStage::RESULT) {
-      if (selectedGame == GameId::TAP_CLASH) {
+      if (selectedGame == GameId::TAP_CLASH || selectedGame == GameId::BRAIN_DUEL) {
         players.resetMatch();
         winner = -1;
-        tapClash.clear();
+        if (selectedGame == GameId::TAP_CLASH) tapClash.clear();
+        else brainDuel.clear();
         stage = ArcadeStage::LOBBY;
         return true;
       }
-      if (selectedGame == GameId::BRAIN_DUEL) {
-        players.resetMatch();
-        winner = -1;
-        brainDuel.clear();
-        stage = ArcadeStage::LOBBY;
-        return true;
-      }
-      if (selectedGame == GameId::PIXEL_PONG) {
+      if (selectedGame == GameId::PIXEL_PONG || selectedGame == GameId::STACK_SHIFT) {
         players.resetRound(true);
         winner = -1;
-        pong.clear();
+        if (selectedGame == GameId::PIXEL_PONG) pong.clear();
+        else stack.clear();
         stage = ArcadeStage::LOBBY;
         return true;
       }
@@ -342,8 +355,7 @@ public:
     const uint32_t now = millis();
     if (stage == ArcadeStage::LOBBY) {
       if (selectedGame == GameId::TAP_CLASH) players.ensureScreenArcadeCpus();
-      else if (selectedGame == GameId::BRAIN_DUEL) players.ensureAutomaticCpu();
-      else if (selectedGame != GameId::PIXEL_RAIDER) players.ensureAutomaticCpu();
+      else if (selectedGame != GameId::PIXEL_RAIDER && selectedGame != GameId::STACK_SHIFT) players.ensureAutomaticCpu();
     }
     if (stage == ArcadeStage::ANNOUNCE) {
       if (now - announceChangedAtMs < ANNOUNCE_STEP_MS) return;
@@ -387,6 +399,7 @@ public:
         clashLastCpuDecisionMs = now;
       }
       if (selectedGame == GameId::PIXEL_PONG) pong.start(now);
+      if (selectedGame == GameId::STACK_SHIFT) stack.start(now);
       if (selectedGame == GameId::TAP_CLASH) tapClash.start(players, now);
       if (selectedGame == GameId::BRAIN_DUEL) brainDuel.start(players, now);
       if (selectedGame == GameId::REFLEX_RALLY) stripLastStepMs = now;
@@ -403,6 +416,10 @@ public:
     if (stage == ArcadeStage::RACING && selectedGame == GameId::PIXEL_PONG) {
       pong.update(players, audio, now);
       if (pong.matchFinished) finishPong(players);
+    }
+    if (stage == ArcadeStage::RACING && selectedGame == GameId::STACK_SHIFT) {
+      stack.update(players, audio, now);
+      if (stack.matchFinished) finishStack(players);
     }
     if (stage == ArcadeStage::RACING && selectedGame == GameId::TAP_CLASH) {
       if (tapClash.update(players, now)) finishTapClash(players);
@@ -467,7 +484,6 @@ private:
     int8_t leader = -1;
     uint8_t bestScore = 0;
     bool tied = false;
-
     for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
       const PlayerSlot& player = players.players[slot];
       if (!player.occupied || !player.connected || player.waiting) continue;
@@ -475,11 +491,8 @@ private:
         leader = slot;
         bestScore = player.score;
         tied = false;
-      } else if (player.score == bestScore) {
-        tied = true;
-      }
+      } else if (player.score == bestScore) tied = true;
     }
-
     winner = tied ? -1 : leader;
     for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
       PlayerSlot& player = players.players[slot];
@@ -489,9 +502,7 @@ private:
         player.streak++;
         player.bestStreak = max(player.bestStreak, player.streak);
         player.totalPoints += BRAIN_DUEL_WIN_BONUS_POINTS;
-      } else {
-        player.streak = 0;
-      }
+      } else player.streak = 0;
     }
     stage = ArcadeStage::RESULT;
   }
@@ -500,7 +511,6 @@ private:
     int8_t leader = -1;
     uint8_t bestScore = 0;
     bool tied = false;
-
     for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
       const PlayerSlot& player = players.players[slot];
       if (!player.occupied || !player.connected || player.waiting) continue;
@@ -508,11 +518,8 @@ private:
         leader = slot;
         bestScore = player.score;
         tied = false;
-      } else if (player.score == bestScore) {
-        tied = true;
-      }
+      } else if (player.score == bestScore) tied = true;
     }
-
     winner = tied ? -1 : leader;
     for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
       PlayerSlot& player = players.players[slot];
@@ -522,9 +529,17 @@ private:
         player.streak++;
         player.bestStreak = max(player.bestStreak, player.streak);
         player.totalPoints += TAP_CLASH_WIN_BONUS_POINTS;
-      } else {
-        player.streak = 0;
-      }
+      } else player.streak = 0;
+    }
+    stage = ArcadeStage::RESULT;
+  }
+
+  void finishStack(PlayerManager& players) {
+    winner = -1;
+    if (stack.playerSlot >= 0 && stack.playerSlot < MAX_PLAYERS) {
+      PlayerSlot& player = players.players[stack.playerSlot];
+      player.totalPoints += stack.score / 10U + uint32_t(stack.clearedLines) * 10U;
+      if (stack.newRecord) player.totalPoints += 50;
     }
     stage = ArcadeStage::RESULT;
   }
