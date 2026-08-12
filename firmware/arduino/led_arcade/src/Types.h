@@ -14,9 +14,27 @@ enum class ArcadeStage : uint8_t {
   BOSS_RESULT
 };
 
-enum class ArenaType : uint8_t { NONE, MATRIX_8X32, STRIP_1D, SCREEN_ARCADE };
+enum class ArenaType : uint8_t { NONE, MATRIX_8X32, STRIP_1D };
 
-enum class GameId : uint8_t { NONE, PIXEL_DERBY, TRON_ARENA, PIXEL_RAIDER, COLOR_CLASH, PIXEL_PONG, REFLEX_RALLY, POWER_PUSH, TAP_CLASH, BRAIN_DUEL };
+enum class DisplayOrientation : uint8_t {
+  HORIZONTAL,
+  VERTICAL_CLOCKWISE,
+  VERTICAL_COUNTERCLOCKWISE
+};
+
+enum class GameId : uint8_t {
+  NONE,
+  PIXEL_DERBY,
+  TRON_ARENA,
+  PIXEL_RAIDER,
+  COLOR_CLASH,
+  PIXEL_PONG,
+  STACK_SHIFT,
+  REFLEX_RALLY,
+  POWER_PUSH,
+  TAP_CLASH,
+  BRAIN_DUEL
+};
 
 enum class TronDirection : uint8_t { UP, RIGHT, DOWN, LEFT };
 
@@ -83,12 +101,22 @@ inline const char* gameName(GameId game) {
     case GameId::PIXEL_RAIDER: return "pixel_raider";
     case GameId::COLOR_CLASH: return "color_clash";
     case GameId::PIXEL_PONG: return "pixel_pong";
+    case GameId::STACK_SHIFT: return "stack_shift";
     case GameId::REFLEX_RALLY: return "reflex_rally";
     case GameId::POWER_PUSH: return "power_push";
     case GameId::TAP_CLASH: return "tap_clash";
     case GameId::BRAIN_DUEL: return "brain_duel";
     default: return "none";
   }
+}
+
+inline DisplayOrientation gameOrientation(GameId game) {
+  if (game == GameId::STACK_SHIFT) {
+    return STACK_ROTATE_CLOCKWISE
+        ? DisplayOrientation::VERTICAL_CLOCKWISE
+        : DisplayOrientation::VERTICAL_COUNTERCLOCKWISE;
+  }
+  return DisplayOrientation::HORIZONTAL;
 }
 
 inline const char* arenaName(ArenaType arena) {
