@@ -7,7 +7,7 @@ Pixel Pong is the first new 8×32 game added after the 1D arena baseline. It use
 - Arena: horizontal 32×8 matrix.
 - Two sides: left and right.
 - Paddle height: 3 LEDs.
-- Controller: upper half moves up; lower half moves down.
+- Controller: vertical drag moves the paddle; short taps on the upper/lower half move one step.
 - One human automatically receives a CPU opponent in the lobby.
 - Two humans play directly against each other.
 - First side to 5 points wins.
@@ -44,10 +44,10 @@ src/presentation/ArcadeDirector.h
 ## Hardware test checklist
 
 1. Boot the current 8×32 + 1D firmware and confirm both arenas remain selectable.
-2. Enter 8×32 Arena and confirm five game cards fit in portrait and landscape.
+2. Enter 8×32 Arena and confirm six game cards fit in portrait and landscape.
 3. Select Pixel Pong and verify its lobby teaser and selection sound.
 4. Join with one phone, mark ready, and start against CPU.
-5. Confirm upper/lower controller halves move only the assigned paddle.
+5. Confirm vertical drag and upper/lower tap fallback move only the assigned paddle.
 6. Confirm wall bounce, paddle bounce, impact angle, acceleration, point sound, and score pips.
 7. Confirm the match ends at 5 points and the result page shows the final score.
 8. Return to Games and verify every game card remains visible.
