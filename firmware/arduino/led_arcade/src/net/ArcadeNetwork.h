@@ -97,31 +97,31 @@ public:
         "/hotspot-detect.html",
         "/library/test/success.html",
         "/success.html",
+        "/success.txt",
+        "/canonical.html",
         "/ncsi.txt",
-        "/connecttest.txt",
-        "/redirect"
+        "/connecttest.txt"
     };
     for (const char* path : captivePaths) {
       http.on(path, HTTP_GET, [this](AsyncWebServerRequest* request) {
-        sendRoot(request);
+        sendCaptiveRedirect(request);
       });
     }
 
+    http.on("/redirect", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      sendRoot(request);
+    });
+
+    http.on("/captive-portal/api", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      sendCaptiveApi(request);
+    });
+
+    http.on("/api", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      sendCaptiveApi(request);
+    });
+
     http.onNotFound([this](AsyncWebServerRequest* request) {
-      AsyncWebServerResponse* response = request->beginResponse(
-          302,
-          "text/plain",
-          "LED Arcade"
-      );
-      response->addHeader(
-          "Location",
-          String("http://") + AP_IP.toString() + "/"
-      );
-      response->addHeader(
-          "Cache-Control",
-          "no-store, no-cache, must-revalidate, max-age=0"
-      );
-      request->send(response);
+      sendCaptiveRedirect(request);
     });
 
     ws.onEvent(
@@ -286,6 +286,29 @@ private:
         200,
         "text/html",
         ARCADE_HTML
+    );
+    addNoCacheHeaders(response);
+    request->send(response);
+  }
+
+  void sendCaptiveRedirect(AsyncWebServerRequest* request) {
+    AsyncWebServerResponse* response = request->beginResponse(
+        302,
+        "text/html",
+        "<html><body>LED Arcade</body></html>"
+    );
+    response->addHeader("Location", String("http://") + AP_IP.toString() + "/");
+    addNoCacheHeaders(response);
+    request->send(response);
+  }
+
+  void sendCaptiveApi(AsyncWebServerRequest* request) {
+    const String body = String("{\"captive\":true,\"user-portal-url\":\"http://") +
+        AP_IP.toString() + "/\"}";
+    AsyncWebServerResponse* response = request->beginResponse(
+        200,
+        "application/json",
+        body
     );
     addNoCacheHeaders(response);
     request->send(response);
