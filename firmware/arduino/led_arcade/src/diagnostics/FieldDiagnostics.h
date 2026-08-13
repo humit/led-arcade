@@ -29,6 +29,8 @@ public:
     uint32_t queueDrops = 0;
     uint32_t gestureAccepted = 0;
     uint32_t gestureRejected = 0;
+    uint32_t httpRequests = 0;
+    uint32_t captiveRequests = 0;
     uint8_t maxWifiStations = 0;
     uint8_t maxWsClients = 0;
   } counters;
@@ -166,6 +168,16 @@ public:
     logf("INFO", "BROWSER", "client=%lu slot=%d %s", static_cast<unsigned long>(clientId), slot, payload.c_str());
   }
 
+  void recordHttpRequest(const IPAddress& ip, const char* responseKind, const char* path) {
+    counters.httpRequests++;
+    if (strcmp(responseKind, "root") != 0) counters.captiveRequests++;
+    logf("INFO", "HTTP", "ip=%s response=%s path=%s", ip.toString().c_str(), responseKind, path);
+  }
+
+  void recordControl(uint32_t clientId, int slot, const String& command) {
+    logf("INFO", "CONTROL", "client=%lu slot=%d command=%s", static_cast<unsigned long>(clientId), slot, command.c_str());
+  }
+
   void logf(const char* level, const char* category, const char* format, ...) {
     char message[112];
     va_list args;
@@ -225,6 +237,8 @@ public:
     json += ",\"queueDrops\":" + String(counters.queueDrops);
     json += ",\"gestureAccepted\":" + String(counters.gestureAccepted);
     json += ",\"gestureRejected\":" + String(counters.gestureRejected);
+    json += ",\"httpRequests\":" + String(counters.httpRequests);
+    json += ",\"captiveRequests\":" + String(counters.captiveRequests);
     json += ",\"maxWifiStations\":" + String(counters.maxWifiStations);
     json += ",\"maxWsClients\":" + String(counters.maxWsClients) + "}";
     json += ",\"clients\":[";

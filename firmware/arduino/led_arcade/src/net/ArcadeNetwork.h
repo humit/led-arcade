@@ -34,7 +34,8 @@ public:
 
     wsEvents = xQueueCreate(WS_EVENT_QUEUE_SIZE, sizeof(WsEvent));
     wifiEvents = xQueueCreate(WIFI_EVENT_QUEUE_SIZE, sizeof(WifiEvent));
-    if (wsEvents == nullptr || wifiEvents == nullptr) {
+    httpEvents = xQueueCreate(HTTP_EVENT_QUEUE_SIZE, sizeof(HttpEvent));
+    if (wsEvents == nullptr || wifiEvents == nullptr || httpEvents == nullptr) {
       Serial.println("[FATAL] Could not create network event queues");
       return;
     }
@@ -154,6 +155,7 @@ public:
     const uint32_t dnsUs = micros() - startedUs;
 
     processWifiEvents();
+    processHttpEvents();
     processWsEvents();
 
     const uint32_t now = millis();
@@ -204,7 +206,7 @@ public:
           "[NET-WARN] dropped WebSocket events=%lu\n",
           static_cast<unsigned long>(reportedDroppedWsEvents)
       );
-      diagnostics->recordQueueDrops(reportedDroppedWsEvents + reportedDroppedWifiEvents);
+      diagnostics->recordQueueDrops(reportedDroppedWsEvents + reportedDroppedWifiEvents + reportedDroppedHttpEvents);
     }
 
     if (droppedWifiEvents != reportedDroppedWifiEvents) {
@@ -213,7 +215,16 @@ public:
           "[NET-WARN] dropped Wi-Fi events=%lu\n",
           static_cast<unsigned long>(reportedDroppedWifiEvents)
       );
-      diagnostics->recordQueueDrops(reportedDroppedWsEvents + reportedDroppedWifiEvents);
+      diagnostics->recordQueueDrops(reportedDroppedWsEvents + reportedDroppedWifiEvents + reportedDroppedHttpEvents);
+    }
+
+    if (droppedHttpEvents != reportedDroppedHttpEvents) {
+      reportedDroppedHttpEvents = droppedHttpEvents;
+      Serial.printf(
+          "[NET-WARN] dropped HTTP events=%lu\n",
+          static_cast<unsigned long>(reportedDroppedHttpEvents)
+      );
+      diagnostics->recordQueueDrops(reportedDroppedWsEvents + reportedDroppedWifiEvents + reportedDroppedHttpEvents);
     }
   }
 
@@ -248,9 +259,16 @@ private:
     DISCONNECTED
   };
 
+  enum class HttpResponseKind : uint8_t {
+    ROOT,
+    REDIRECT,
+    CAPTIVE_API
+  };
+
   static constexpr size_t WS_EVENT_TEXT_MAX = 512;
   static constexpr uint8_t WS_EVENT_QUEUE_SIZE = 24;
   static constexpr uint8_t WIFI_EVENT_QUEUE_SIZE = 16;
+  static constexpr uint8_t HTTP_EVENT_QUEUE_SIZE = 16;
   static constexpr uint32_t WS_CLEANUP_INTERVAL_MS = 1000;
 
   struct WsEvent {
@@ -268,20 +286,30 @@ private:
     uint8_t reason = 0;
   };
 
+  struct HttpEvent {
+    HttpResponseKind responseKind = HttpResponseKind::ROOT;
+    uint8_t remoteIp[4] = {0, 0, 0, 0};
+    char path[64] = {};
+  };
+
   PlayerManager* players = nullptr;
   ArcadeGameEngine* game = nullptr;
   AudioOut* audio = nullptr;
   FieldDiagnostics* diagnostics = nullptr;
   QueueHandle_t wsEvents = nullptr;
   QueueHandle_t wifiEvents = nullptr;
+  QueueHandle_t httpEvents = nullptr;
   volatile uint32_t droppedWsEvents = 0;
   volatile uint32_t droppedWifiEvents = 0;
+  volatile uint32_t droppedHttpEvents = 0;
   uint32_t reportedDroppedWsEvents = 0;
   uint32_t reportedDroppedWifiEvents = 0;
+  uint32_t reportedDroppedHttpEvents = 0;
   uint32_t lastBroadcastMs = 0;
   uint32_t lastWsCleanupMs = 0;
 
   void sendRoot(AsyncWebServerRequest* request) {
+    enqueueHttpEvent(request, HttpResponseKind::ROOT);
     AsyncWebServerResponse* response = request->beginResponse_P(
         200,
         "text/html",
@@ -292,6 +320,7 @@ private:
   }
 
   void sendCaptiveRedirect(AsyncWebServerRequest* request) {
+    enqueueHttpEvent(request, HttpResponseKind::REDIRECT);
     AsyncWebServerResponse* response = request->beginResponse(
         302,
         "text/html",
@@ -303,6 +332,7 @@ private:
   }
 
   void sendCaptiveApi(AsyncWebServerRequest* request) {
+    enqueueHttpEvent(request, HttpResponseKind::CAPTIVE_API);
     const String body = String("{\"captive\":true,\"user-portal-url\":\"http://") +
         AP_IP.toString() + "/\"}";
     AsyncWebServerResponse* response = request->beginResponse(
@@ -391,6 +421,16 @@ private:
     if (xQueueSend(wifiEvents, &event, 0) != pdTRUE) ++droppedWifiEvents;
   }
 
+  void enqueueHttpEvent(AsyncWebServerRequest* request, HttpResponseKind responseKind) {
+    if (request == nullptr || httpEvents == nullptr) return;
+    HttpEvent event;
+    event.responseKind = responseKind;
+    const IPAddress remoteIp = request->client()->remoteIP();
+    for (uint8_t i = 0; i < 4; ++i) event.remoteIp[i] = remoteIp[i];
+    strlcpy(event.path, request->url().c_str(), sizeof(event.path));
+    if (xQueueSend(httpEvents, &event, 0) != pdTRUE) ++droppedHttpEvents;
+  }
+
   void processWifiEvents() {
     if (wifiEvents == nullptr) return;
     WifiEvent event;
@@ -400,6 +440,18 @@ private:
       } else {
         diagnostics->recordWifiDisconnect(event.mac, event.aid, event.reason);
       }
+    }
+  }
+
+  void processHttpEvents() {
+    if (httpEvents == nullptr) return;
+    HttpEvent event;
+    while (xQueueReceive(httpEvents, &event, 0) == pdTRUE) {
+      const IPAddress remoteIp(event.remoteIp[0], event.remoteIp[1], event.remoteIp[2], event.remoteIp[3]);
+      const char* responseKind = event.responseKind == HttpResponseKind::ROOT
+          ? "root"
+          : event.responseKind == HttpResponseKind::REDIRECT ? "redirect" : "captive-api";
+      diagnostics->recordHttpRequest(remoteIp, responseKind, event.path);
     }
   }
 
@@ -554,6 +606,13 @@ private:
     if (message == "PING") {
       sendState(client);
       return;
+    }
+
+    if (message.startsWith("SELECT_PLATFORM|") ||
+        message.startsWith("SELECT_GAME|") ||
+        message.startsWith("READY|") ||
+        message == "START") {
+      diagnostics->recordControl(client, slot, message);
     }
 
     if (message == "SELECT_PLATFORM|matrix_8x32") game->selectPlatform(ArenaType::MATRIX_8X32);

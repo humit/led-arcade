@@ -91,7 +91,7 @@ static const uint32_t STATE_BROADCAST_MS = 200;
 static const uint8_t MATCH_WIN_SCORE = 2;
 
 // Field-test diagnostics
-static const char* FIELD_TEST_BUILD = "field-test-diagnostics-v1";
+static const char* FIELD_TEST_BUILD = "field-test-diagnostics-v2";
 static const uint32_t DIAGNOSTICS_CHECKPOINT_MS = 5000;
 static const uint32_t DIAGNOSTICS_HEALTH_LOG_MS = 60000;
 static const uint32_t DIAGNOSTICS_LOW_HEAP_BYTES = 32000;
