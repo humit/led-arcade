@@ -1,135 +1,108 @@
 # Arduino CLI Development Setup
 
-This document explains how to prepare a new macOS development machine for the LED Arcade Platform firmware workflow.
+This guide prepares a macOS development machine for the LED Arcade firmware workflow.
 
-Current firmware target:
+## Pinned toolchain
 
 ```text
 Board: WEMOS LOLIN32 Lite
-Arduino core: esp32:esp32
-Sketch: firmware/arduino/color_rally
-Default FQBN: esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200
-1. Install Arduino CLI
+Arduino CLI: 1.5.1
+ESP32 core: 3.3.10
+FastLED: 3.10.5
+Async TCP: 3.4.10
+ESP Async WebServer: 3.6.0
+Sketch: firmware/arduino/led_arcade
+FQBN: esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200
+```
 
-Using Homebrew:
+`PartitionScheme=no_ota` is required because the embedded controller page does not fit in the default application partition.
 
+## One-command setup
+
+From the repository root:
+
+```bash
+./tools/setup_arduino_cli_macos.sh
+./tools/arcade doctor
+./tools/arcade compile --clean
+```
+
+The setup script installs the exact versions listed above. `arcade doctor` fails with corrective commands if a required core or library is absent or has a different version.
+
+## Manual setup
+
+Install Arduino CLI with Homebrew:
+
+```bash
 brew install arduino-cli
-
-Verify:
-
-arduino-cli version
-2. Initialize Arduino CLI config
 arduino-cli config init --overwrite
-
-Add the Espressif ESP32 board package index:
-
 arduino-cli config add board_manager.additional_urls \
   https://espressif.github.io/arduino-esp32/package_esp32_index.json
-
-Update indexes:
-
 arduino-cli core update-index
-3. Install ESP32 board core
-arduino-cli core install esp32:esp32
+```
 
-Verify that the LOLIN32 Lite board is available:
+Install the pinned core and libraries:
 
-arduino-cli board listall | grep -i "lolin32\|wemos\|esp32 dev"
+```bash
+arduino-cli core install "esp32:esp32@3.3.10"
+arduino-cli lib install "FastLED@3.10.5"
+arduino-cli lib install "Async TCP@3.4.10"
+arduino-cli lib install "ESP Async WebServer@3.6.0"
+```
 
-Expected relevant entry:
+WiFi, Networking, DNSServer, FS, SPI, AsyncUDP, and Hash are provided by the ESP32 core.
 
-WEMOS LOLIN32 Lite    esp32:esp32:lolin32-lite
+## Compile, deploy, and monitor
 
-Avoid esp32-bluepad32:* targets for the current captive portal / FastLED firmware unless explicitly working on Bluepad32 controller experiments.
+Compile without uploading:
 
-4. Install required libraries
-arduino-cli lib install FastLED
+```bash
+./tools/arcade compile --clean
+```
 
-The following libraries are provided by the ESP32 core and do not need separate installation:
+Connect the ESP32 and run the normal compile, upload, and monitor workflow:
 
-WiFi
-WebServer
-DNSServer
-5. Compile Color Rally
+```bash
+./tools/arcade deploy --clean
+```
 
-From repo root:
+The tool auto-detects a single supported serial port. If more than one is present:
 
-./tools/compile_color_rally.sh
+```bash
+./tools/arcade ports
+./tools/arcade deploy --clean --port /dev/cu.usbserial-XXXX
+```
 
-The script defaults to:
+Use `Ctrl+C` to leave the serial monitor.
 
-esp32:esp32:lolin32-lite:PartitionScheme=no_ota,UploadSpeed=115200
+## Custom board target
 
-PartitionScheme=no_ota is required because the embedded controller HTML makes the firmware too large for the default partition.
+Override the default FQBN when necessary:
 
-Expected successful compile should show a maximum program storage around:
-
-Maximum is 2097152 bytes
-
-If the output instead shows:
-
-Maximum is 1310720 bytes
-
-then the large app partition is not being used.
-
-6. Upload Color Rally
-
-Connect the ESP32 by USB.
-
-The upload script auto-detects a single /dev/cu.usbserial* port:
-
-./tools/upload_color_rally.sh
-
-If multiple matching ports exist, pass the port explicitly:
-
-./tools/upload_color_rally.sh /dev/cu.usbserial-XXXX
-
-To list connected boards/ports:
-
-arduino-cli board list
-
-or:
-
-ls /dev/cu.* | grep -i "usb\|wch\|serial\|slab"
-7. Override board target if needed
-
-Compile with a custom FQBN:
-
-./tools/compile_color_rally.sh "esp32:esp32:esp32:PartitionScheme=no_ota,UploadSpeed=115200"
-
-Upload with a custom FQBN:
-
+```bash
 FQBN="esp32:esp32:esp32:PartitionScheme=no_ota,UploadSpeed=115200" \
-  ./tools/upload_color_rally.sh /dev/cu.usbserial-XXXX
-8. Upload speed note
+  ./tools/arcade compile --clean
+```
 
-The board package default upload speed may be 921600.
+Avoid `esp32-bluepad32:*` targets unless explicitly testing Bluepad32 controller support.
 
-If uploads fail or are unstable, use:
+## Expected partition size
 
-UploadSpeed=115200
+A successful build should report a maximum program storage size close to:
 
-This is the current default in our scripts.
+```text
+Maximum is 2097152 bytes
+```
 
-9. One-command setup
+If it reports approximately 1,310,720 bytes, the large application partition is not active.
 
-For a new macOS machine, run:
+## macOS notes
 
-./tools/setup_arduino_cli_macos.sh
-
-Then compile:
-
-./tools/compile_color_rally.sh
-
-Then connect ESP32 and upload:
-
-./tools/upload_color_rally.sh
-10. Known macOS notes
-
-Homebrew may warn that Xcode Command Line Tools are outdated. If Arduino CLI installs and compiles successfully, this is not immediately blocking.
+Homebrew may warn that Xcode Command Line Tools are outdated. If Arduino CLI installs and the firmware compiles, that warning is not immediately blocking.
 
 To reinstall Command Line Tools later:
 
+```bash
 sudo rm -rf /Library/Developer/CommandLineTools
 sudo xcode-select --install
-
+```

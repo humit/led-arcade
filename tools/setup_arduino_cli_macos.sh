@@ -25,14 +25,13 @@ arduino-cli config add board_manager.additional_urls \
 echo "Updating board indexes..."
 arduino-cli core update-index
 
-echo "Installing ESP32 core..."
-arduino-cli core install esp32:esp32
+echo "Installing ESP32 core 3.3.10..."
+arduino-cli core install "esp32:esp32@3.3.10"
 
 echo "Installing required libraries..."
-arduino-cli lib install FastLED
-arduino-cli lib install "WebSockets"
-arduino-cli lib install "AsyncTCP"
-arduino-cli lib install "ESP Async WebServer"
+arduino-cli lib install "FastLED@3.10.5"
+arduino-cli lib install "Async TCP@3.4.10"
+arduino-cli lib install "ESP Async WebServer@3.6.0"
 
 echo
 echo "Installed Arduino CLI:"
@@ -45,4 +44,5 @@ arduino-cli board listall | grep -i "lolin32\|wemos\|esp32 dev" || true
 echo
 echo "Setup complete."
 echo "Next:"
-echo "  ./tools/compile_color_rally.sh"
+echo "  ./tools/arcade doctor"
+echo "  ./tools/arcade compile --clean"

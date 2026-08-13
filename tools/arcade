@@ -11,6 +11,10 @@ BAUD="${BAUD:-115200}"
 ARDUINO_CLI="${ARDUINO_CLI:-arduino-cli}"
 PORT="${PORT:-}"
 CLEAN_BUILD=0
+REQUIRED_ESP32_CORE_VERSION="3.3.10"
+REQUIRED_FASTLED_VERSION="3.10.5"
+REQUIRED_ASYNC_TCP_VERSION="3.4.10"
+REQUIRED_ASYNC_WEBSERVER_VERSION="3.6.0"
 
 usage() {
   cat <<'EOF'
@@ -30,8 +34,8 @@ Environment overrides:
   BUILD_DIR=/path/to/build
   ARDUINO_CLI=/path/to/arduino-cli
 
-The canonical compile command injects WEBSOCKETS_TCP_TIMEOUT into the
-arduinoWebSockets library build. Do not bypass this helper for release builds.
+The canonical compile command verifies the pinned ESP32 core and library
+versions before building. Do not bypass this helper for release builds.
 EOF
 }
 
@@ -60,6 +64,76 @@ check_repo() {
   if command -v git >/dev/null 2>&1 && git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git -C "${ROOT}" diff --check || die "git diff --check failed"
   fi
+}
+
+check_toolchain() {
+  local core_json libraries_json
+  core_json="$(mktemp)"
+  libraries_json="$(mktemp)"
+
+  if ! "${ARDUINO_CLI}" core list --format json >"${core_json}"; then
+    rm -f "${core_json}" "${libraries_json}"
+    die "Could not inspect installed Arduino cores."
+  fi
+  if ! "${ARDUINO_CLI}" lib list --format json >"${libraries_json}"; then
+    rm -f "${core_json}" "${libraries_json}"
+    die "Could not inspect installed Arduino libraries."
+  fi
+
+  local status=0
+  python3 - \
+    "${core_json}" \
+    "${libraries_json}" \
+    "${REQUIRED_ESP32_CORE_VERSION}" \
+    "${REQUIRED_FASTLED_VERSION}" \
+    "${REQUIRED_ASYNC_TCP_VERSION}" \
+    "${REQUIRED_ASYNC_WEBSERVER_VERSION}" <<'PY' || status=$?
+import json
+import sys
+
+core_path, libraries_path, core_version, fastled_version, async_tcp_version, webserver_version = sys.argv[1:]
+
+with open(core_path, encoding="utf-8") as handle:
+    core_data = json.load(handle)
+with open(libraries_path, encoding="utf-8") as handle:
+    library_data = json.load(handle)
+
+installed_cores = {
+    platform.get("id"): platform.get("installed_version")
+    for platform in core_data.get("platforms", [])
+}
+installed_libraries = {
+    item.get("library", {}).get("name"): item.get("library", {}).get("version")
+    for item in library_data.get("installed_libraries", [])
+}
+
+requirements = [
+    ("ESP32 core", "esp32:esp32", core_version, installed_cores, f'arduino-cli core install "esp32:esp32@{core_version}"'),
+    ("FastLED", "FastLED", fastled_version, installed_libraries, f'arduino-cli lib install "FastLED@{fastled_version}"'),
+    ("Async TCP", "Async TCP", async_tcp_version, installed_libraries, f'arduino-cli lib install "Async TCP@{async_tcp_version}"'),
+    ("ESP Async WebServer", "ESP Async WebServer", webserver_version, installed_libraries, f'arduino-cli lib install "ESP Async WebServer@{webserver_version}"'),
+]
+
+failures = []
+for label, key, expected, installed, command in requirements:
+    actual = installed.get(key)
+    state = "OK" if actual == expected else "MISSING" if actual is None else "WRONG VERSION"
+    shown = actual or "not installed"
+    print(f"  {label:<20} required={expected:<8} installed={shown:<13} {state}")
+    if actual != expected:
+        failures.append(command)
+
+if failures:
+    sys.stdout.flush()
+    print("\n[arcade] Required Arduino dependencies are not satisfied.", file=sys.stderr)
+    print("[arcade] Run:", file=sys.stderr)
+    for command in failures:
+        print(f"  {command}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+
+  rm -f "${core_json}" "${libraries_json}"
+  [[ "${status}" -eq 0 ]] || die "Arduino toolchain check failed."
 }
 
 candidate_ports() {
@@ -115,7 +189,10 @@ resolve_port() {
 
 compile_firmware() {
   need_command "${ARDUINO_CLI}"
+  need_command python3
   check_repo
+  log "Checking required Arduino toolchain"
+  check_toolchain
   mkdir -p "${BUILD_DIR}"
 
   local args=(
@@ -189,14 +266,8 @@ doctor() {
   log "Build directory: ${BUILD_DIR}"
   "${ARDUINO_CLI}" version
 
-  log "Installed ESP32 core"
-  "${ARDUINO_CLI}" core list | awk 'NR == 1 || $1 == "esp32:esp32"'
-
-  log "Relevant libraries"
-  "${ARDUINO_CLI}" lib list | awk '
-    NR == 1 ||
-    tolower($0) ~ /fastled|async.?tcp|esp.?async.?webserver/
-  '
+  log "Required Arduino toolchain"
+  check_toolchain
 
   log "Detected serial ports"
   local ports
