@@ -5,6 +5,7 @@
 static const char* AP_SSID = "! OYUNA KATIL !";
 static const byte DNS_PORT = 53;
 static const uint16_t WS_PORT = 81;
+static const uint8_t AP_MAX_CONNECTIONS = 8;
 static const IPAddress AP_IP(10, 10, 10, 10);
 static const IPAddress AP_GATEWAY(10, 10, 10, 10);
 static const IPAddress AP_SUBNET(255, 255, 255, 0);
@@ -88,6 +89,14 @@ static const uint32_t TAP_DEBOUNCE_MS = 65;
 static const uint32_t COUNTDOWN_STEP_MS = 1000;
 static const uint32_t STATE_BROADCAST_MS = 200;
 static const uint8_t MATCH_WIN_SCORE = 2;
+
+// Field-test diagnostics
+static const char* FIELD_TEST_BUILD = "field-test-diagnostics-v2";
+static const uint32_t DIAGNOSTICS_CHECKPOINT_MS = 5000;
+static const uint32_t DIAGNOSTICS_HEALTH_LOG_MS = 60000;
+static const uint32_t DIAGNOSTICS_LOW_HEAP_BYTES = 32000;
+static const uint8_t DIAGNOSTICS_LOG_CAPACITY = 64;
+static const uint8_t DIAGNOSTICS_CLIENT_CAPACITY = MAX_PLAYERS;
 
 // Bonus + boss
 static const uint8_t TURBO_X_1 = 10;

@@ -12,6 +12,7 @@
 #include "../session/PlayerManager.h"
 #include "../core/ArcadeGameEngine.h"
 #include "../hardware/AudioOut.h"
+#include "../diagnostics/FieldDiagnostics.h"
 
 class ArcadeNetwork {
 public:
@@ -23,25 +24,71 @@ public:
   void begin(
       PlayerManager& playerRef,
       ArcadeGameEngine& gameRef,
-      AudioOut& audioRef
+      AudioOut& audioRef,
+      FieldDiagnostics& diagnosticsRef
   ) {
     players = &playerRef;
     game = &gameRef;
     audio = &audioRef;
+    diagnostics = &diagnosticsRef;
 
     wsEvents = xQueueCreate(WS_EVENT_QUEUE_SIZE, sizeof(WsEvent));
-    if (wsEvents == nullptr) {
-      Serial.println("[FATAL] Could not create WebSocket event queue");
+    wifiEvents = xQueueCreate(WIFI_EVENT_QUEUE_SIZE, sizeof(WifiEvent));
+    httpEvents = xQueueCreate(HTTP_EVENT_QUEUE_SIZE, sizeof(HttpEvent));
+    if (wsEvents == nullptr || wifiEvents == nullptr || httpEvents == nullptr) {
+      Serial.println("[FATAL] Could not create network event queues");
       return;
     }
 
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
-    WiFi.softAP(AP_SSID);
+    WiFi.onEvent([this](arduino_event_id_t event, arduino_event_info_t info) {
+      if (event == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
+        enqueueWifiEvent(
+            WifiEventType::CONNECTED,
+            info.wifi_ap_staconnected.mac,
+            info.wifi_ap_staconnected.aid,
+            0
+        );
+      } else if (event == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) {
+        enqueueWifiEvent(
+            WifiEventType::DISCONNECTED,
+            info.wifi_ap_stadisconnected.mac,
+            info.wifi_ap_stadisconnected.aid,
+            info.wifi_ap_stadisconnected.reason
+        );
+      }
+    });
+    WiFi.softAP(AP_SSID, nullptr, 1, 0, AP_MAX_CONNECTIONS);
     dns.start(DNS_PORT, "*", AP_IP);
 
     http.on("/", HTTP_GET, [this](AsyncWebServerRequest* request) {
       sendRoot(request);
+    });
+
+    http.on("/debug", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      sendDebugPage(request);
+    });
+
+    http.on("/debug.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      AsyncWebServerResponse* response = request->beginResponse(
+          200,
+          "application/json",
+          diagnostics->summaryJson()
+      );
+      addNoCacheHeaders(response);
+      request->send(response);
+    });
+
+    http.on("/debug.log", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      AsyncWebServerResponse* response = request->beginResponse(
+          200,
+          "text/plain; charset=utf-8",
+          diagnostics->logText()
+      );
+      response->addHeader("Content-Disposition", "attachment; filename=led-arcade-field-test.log");
+      addNoCacheHeaders(response);
+      request->send(response);
     });
 
     const char* captivePaths[] = {
@@ -51,31 +98,31 @@ public:
         "/hotspot-detect.html",
         "/library/test/success.html",
         "/success.html",
+        "/success.txt",
+        "/canonical.html",
         "/ncsi.txt",
-        "/connecttest.txt",
-        "/redirect"
+        "/connecttest.txt"
     };
     for (const char* path : captivePaths) {
       http.on(path, HTTP_GET, [this](AsyncWebServerRequest* request) {
-        sendRoot(request);
+        sendCaptiveRedirect(request);
       });
     }
 
+    http.on("/redirect", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      sendRoot(request);
+    });
+
+    http.on("/captive-portal/api", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      sendCaptiveApi(request);
+    });
+
+    http.on("/api", HTTP_GET, [this](AsyncWebServerRequest* request) {
+      sendCaptiveApi(request);
+    });
+
     http.onNotFound([this](AsyncWebServerRequest* request) {
-      AsyncWebServerResponse* response = request->beginResponse(
-          302,
-          "text/plain",
-          "LED Arcade"
-      );
-      response->addHeader(
-          "Location",
-          String("http://") + AP_IP.toString() + "/"
-      );
-      response->addHeader(
-          "Cache-Control",
-          "no-store, no-cache, must-revalidate, max-age=0"
-      );
-      request->send(response);
+      sendCaptiveRedirect(request);
     });
 
     ws.onEvent(
@@ -107,10 +154,33 @@ public:
     dns.processNextRequest();
     const uint32_t dnsUs = micros() - startedUs;
 
+    processWifiEvents();
+    processHttpEvents();
     processWsEvents();
 
     const uint32_t now = millis();
+    for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
+      const PlayerSlot& player = players->players[slot];
+      if (!player.occupied || !player.connected || player.isCpu) continue;
+      const uint32_t silentMs = now - player.lastSeenMs;
+      if (silentMs >= PLAYER_HEARTBEAT_TIMEOUT_MS) {
+        diagnostics->recordHeartbeatTimeout(
+            player.wsClient,
+            slot,
+            player.remoteIp,
+            silentMs
+        );
+      }
+    }
     players->disconnectStale(now);
+    for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
+      const PlayerSlot& player = players->players[slot];
+      if (!player.occupied || player.connected || player.isCpu) continue;
+      const uint32_t disconnectedMs = now - player.disconnectedAtMs;
+      if (disconnectedMs >= PLAYER_RECONNECT_MS) {
+        diagnostics->recordExpiredSession(slot, player.remoteIp, disconnectedMs);
+      }
+    }
     players->expire(now);
 
     if (now - lastWsCleanupMs >= WS_CLEANUP_INTERVAL_MS) {
@@ -136,6 +206,25 @@ public:
           "[NET-WARN] dropped WebSocket events=%lu\n",
           static_cast<unsigned long>(reportedDroppedWsEvents)
       );
+      diagnostics->recordQueueDrops(reportedDroppedWsEvents + reportedDroppedWifiEvents + reportedDroppedHttpEvents);
+    }
+
+    if (droppedWifiEvents != reportedDroppedWifiEvents) {
+      reportedDroppedWifiEvents = droppedWifiEvents;
+      Serial.printf(
+          "[NET-WARN] dropped Wi-Fi events=%lu\n",
+          static_cast<unsigned long>(reportedDroppedWifiEvents)
+      );
+      diagnostics->recordQueueDrops(reportedDroppedWsEvents + reportedDroppedWifiEvents + reportedDroppedHttpEvents);
+    }
+
+    if (droppedHttpEvents != reportedDroppedHttpEvents) {
+      reportedDroppedHttpEvents = droppedHttpEvents;
+      Serial.printf(
+          "[NET-WARN] dropped HTTP events=%lu\n",
+          static_cast<unsigned long>(reportedDroppedHttpEvents)
+      );
+      diagnostics->recordQueueDrops(reportedDroppedWsEvents + reportedDroppedWifiEvents + reportedDroppedHttpEvents);
     }
   }
 
@@ -160,12 +249,26 @@ public:
 
 private:
   enum class WsEventType : uint8_t {
+    CONNECTED,
     TEXT,
     DISCONNECTED
   };
 
-  static constexpr size_t WS_EVENT_TEXT_MAX = 192;
+  enum class WifiEventType : uint8_t {
+    CONNECTED,
+    DISCONNECTED
+  };
+
+  enum class HttpResponseKind : uint8_t {
+    ROOT,
+    REDIRECT,
+    CAPTIVE_API
+  };
+
+  static constexpr size_t WS_EVENT_TEXT_MAX = 512;
   static constexpr uint8_t WS_EVENT_QUEUE_SIZE = 24;
+  static constexpr uint8_t WIFI_EVENT_QUEUE_SIZE = 16;
+  static constexpr uint8_t HTTP_EVENT_QUEUE_SIZE = 16;
   static constexpr uint32_t WS_CLEANUP_INTERVAL_MS = 1000;
 
   struct WsEvent {
@@ -176,26 +279,82 @@ private:
     char text[WS_EVENT_TEXT_MAX] = {};
   };
 
+  struct WifiEvent {
+    WifiEventType type = WifiEventType::CONNECTED;
+    uint8_t mac[6] = {};
+    uint8_t aid = 0;
+    uint8_t reason = 0;
+  };
+
+  struct HttpEvent {
+    HttpResponseKind responseKind = HttpResponseKind::ROOT;
+    uint8_t remoteIp[4] = {0, 0, 0, 0};
+    char path[64] = {};
+  };
+
   PlayerManager* players = nullptr;
   ArcadeGameEngine* game = nullptr;
   AudioOut* audio = nullptr;
+  FieldDiagnostics* diagnostics = nullptr;
   QueueHandle_t wsEvents = nullptr;
+  QueueHandle_t wifiEvents = nullptr;
+  QueueHandle_t httpEvents = nullptr;
   volatile uint32_t droppedWsEvents = 0;
+  volatile uint32_t droppedWifiEvents = 0;
+  volatile uint32_t droppedHttpEvents = 0;
   uint32_t reportedDroppedWsEvents = 0;
+  uint32_t reportedDroppedWifiEvents = 0;
+  uint32_t reportedDroppedHttpEvents = 0;
   uint32_t lastBroadcastMs = 0;
   uint32_t lastWsCleanupMs = 0;
 
   void sendRoot(AsyncWebServerRequest* request) {
+    enqueueHttpEvent(request, HttpResponseKind::ROOT);
     AsyncWebServerResponse* response = request->beginResponse_P(
         200,
         "text/html",
         ARCADE_HTML
     );
-    response->addHeader(
-        "Cache-Control",
-        "no-store, no-cache, must-revalidate, max-age=0"
-    );
+    addNoCacheHeaders(response);
     request->send(response);
+  }
+
+  void sendCaptiveRedirect(AsyncWebServerRequest* request) {
+    enqueueHttpEvent(request, HttpResponseKind::REDIRECT);
+    AsyncWebServerResponse* response = request->beginResponse(
+        302,
+        "text/html",
+        "<html><body>LED Arcade</body></html>"
+    );
+    response->addHeader("Location", String("http://") + AP_IP.toString() + "/");
+    addNoCacheHeaders(response);
+    request->send(response);
+  }
+
+  void sendCaptiveApi(AsyncWebServerRequest* request) {
+    enqueueHttpEvent(request, HttpResponseKind::CAPTIVE_API);
+    const String body = String("{\"captive\":true,\"user-portal-url\":\"http://") +
+        AP_IP.toString() + "/\"}";
+    AsyncWebServerResponse* response = request->beginResponse(
+        200,
+        "application/json",
+        body
+    );
+    addNoCacheHeaders(response);
+    request->send(response);
+  }
+
+  void sendDebugPage(AsyncWebServerRequest* request) {
+    static const char DEBUG_PAGE[] PROGMEM = R"HTML(
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="5"><title>LED Arcade Field Test</title><style>body{font:14px system-ui;background:#080a12;color:#f4f6ff;margin:0;padding:18px}h1{font-size:22px}a{color:#8fb3ff}.card{background:#141827;border:1px solid #303854;border-radius:14px;padding:14px;margin:12px 0}pre{white-space:pre-wrap;word-break:break-word;font-size:12px}</style></head><body><h1>LED Arcade Field Test</h1><div class="card"><a href="/debug.json">Open JSON summary</a> · <a href="/debug.log" download>Download event log</a></div><div class="card"><pre id="out">Loading…</pre></div><script>fetch('/debug.json',{cache:'no-store'}).then(r=>r.json()).then(v=>out.textContent=JSON.stringify(v,null,2)).catch(e=>out.textContent=String(e))</script></body></html>
+)HTML";
+    AsyncWebServerResponse* response = request->beginResponse_P(200, "text/html", DEBUG_PAGE);
+    addNoCacheHeaders(response);
+    request->send(response);
+  }
+
+  void addNoCacheHeaders(AsyncWebServerResponse* response) {
+    response->addHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   }
 
   void enqueueWsEvent(
@@ -215,7 +374,9 @@ private:
       event.remoteIp[i] = remoteIp[i];
     }
 
-    if (type == WS_EVT_DISCONNECT) {
+    if (type == WS_EVT_CONNECT) {
+      event.type = WsEventType::CONNECTED;
+    } else if (type == WS_EVT_DISCONNECT) {
       event.type = WsEventType::DISCONNECTED;
     } else if (type == WS_EVT_DATA) {
       const AwsFrameInfo* info = static_cast<const AwsFrameInfo*>(arg);
@@ -245,23 +406,78 @@ private:
     }
   }
 
+  void enqueueWifiEvent(
+      WifiEventType type,
+      const uint8_t* mac,
+      uint8_t aid,
+      uint8_t reason
+  ) {
+    if (wifiEvents == nullptr) return;
+    WifiEvent event;
+    event.type = type;
+    if (mac != nullptr) memcpy(event.mac, mac, sizeof(event.mac));
+    event.aid = aid;
+    event.reason = reason;
+    if (xQueueSend(wifiEvents, &event, 0) != pdTRUE) ++droppedWifiEvents;
+  }
+
+  void enqueueHttpEvent(AsyncWebServerRequest* request, HttpResponseKind responseKind) {
+    if (request == nullptr || httpEvents == nullptr) return;
+    HttpEvent event;
+    event.responseKind = responseKind;
+    const IPAddress remoteIp = request->client()->remoteIP();
+    for (uint8_t i = 0; i < 4; ++i) event.remoteIp[i] = remoteIp[i];
+    strlcpy(event.path, request->url().c_str(), sizeof(event.path));
+    if (xQueueSend(httpEvents, &event, 0) != pdTRUE) ++droppedHttpEvents;
+  }
+
+  void processWifiEvents() {
+    if (wifiEvents == nullptr) return;
+    WifiEvent event;
+    while (xQueueReceive(wifiEvents, &event, 0) == pdTRUE) {
+      if (event.type == WifiEventType::CONNECTED) {
+        diagnostics->recordWifiConnect(event.mac, event.aid);
+      } else {
+        diagnostics->recordWifiDisconnect(event.mac, event.aid, event.reason);
+      }
+    }
+  }
+
+  void processHttpEvents() {
+    if (httpEvents == nullptr) return;
+    HttpEvent event;
+    while (xQueueReceive(httpEvents, &event, 0) == pdTRUE) {
+      const IPAddress remoteIp(event.remoteIp[0], event.remoteIp[1], event.remoteIp[2], event.remoteIp[3]);
+      const char* responseKind = event.responseKind == HttpResponseKind::ROOT
+          ? "root"
+          : event.responseKind == HttpResponseKind::REDIRECT ? "redirect" : "captive-api";
+      diagnostics->recordHttpRequest(remoteIp, responseKind, event.path);
+    }
+  }
+
   void processWsEvents() {
     if (wsEvents == nullptr) return;
 
     WsEvent event;
     while (xQueueReceive(wsEvents, &event, 0) == pdTRUE) {
-      if (event.type == WsEventType::DISCONNECTED) {
-        players->disconnect(event.clientId, millis());
-        broadcastState();
-        continue;
-      }
-
       const IPAddress remoteIp(
           event.remoteIp[0],
           event.remoteIp[1],
           event.remoteIp[2],
           event.remoteIp[3]
       );
+      if (event.type == WsEventType::CONNECTED) {
+        diagnostics->recordWsConnect(event.clientId, remoteIp, ws.count());
+        continue;
+      }
+      if (event.type == WsEventType::DISCONNECTED) {
+        const int slot = players->findByClient(event.clientId);
+        diagnostics->recordWsDisconnect(event.clientId, remoteIp, slot);
+        players->disconnect(event.clientId, millis());
+        broadcastState();
+        continue;
+      }
+
       handleWsMessage(
           event.clientId,
           remoteIp,
@@ -341,12 +557,14 @@ private:
       const String& message
   ) {
     if (message.startsWith("HELLO|")) {
+      const String cid = commandArg(message);
       const int slot = players->connect(
-          commandArg(message),
+          cid,
           client,
           remoteIp,
           millis()
       );
+      diagnostics->recordHello(client, slot, remoteIp, cid);
       if (slot >= 0 && game->selectedArena != ArenaType::SCREEN_ARCADE) audio->playerJoined();
       sendState(client);
       broadcastState();
@@ -368,10 +586,33 @@ private:
     const int slot = players->findByClient(client);
     if (slot < 0) return;
     players->touch(client, millis());
+    diagnostics->touchClient(client);
+
+    if (message.startsWith("CLIENT_INFO|")) {
+      diagnostics->recordClientInfo(client, slot, remoteIp, commandArg(message));
+      return;
+    }
+
+    if (message.startsWith("DIAG_GESTURE|")) {
+      diagnostics->recordGesture(client, slot, commandArg(message));
+      return;
+    }
+
+    if (message.startsWith("CLIENT_EVENT|")) {
+      diagnostics->recordClientEvent(client, slot, commandArg(message));
+      return;
+    }
 
     if (message == "PING") {
       sendState(client);
       return;
+    }
+
+    if (message.startsWith("SELECT_PLATFORM|") ||
+        message.startsWith("SELECT_GAME|") ||
+        message.startsWith("READY|") ||
+        message == "START") {
+      diagnostics->recordControl(client, slot, message);
     }
 
     if (message == "SELECT_PLATFORM|matrix_8x32") game->selectPlatform(ArenaType::MATRIX_8X32);

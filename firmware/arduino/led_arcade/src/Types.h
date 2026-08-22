@@ -14,7 +14,7 @@ enum class ArcadeStage : uint8_t {
   BOSS_RESULT
 };
 
-enum class ArenaType : uint8_t { NONE, MATRIX_8X32, STRIP_1D };
+enum class ArenaType : uint8_t { NONE, MATRIX_8X32, STRIP_1D, SCREEN_ARCADE };
 
 enum class DisplayOrientation : uint8_t {
   HORIZONTAL,
